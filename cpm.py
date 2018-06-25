@@ -4,6 +4,7 @@ import pandas as pd
 #from matplotlib import pyplot as plt
 #import seaborn as sns
 import glob
+from scipy import stats
 
 def read_mats(iplist):
 
