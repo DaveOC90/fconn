@@ -32,8 +32,8 @@ def train_cpm(ipmat,pheno):
     posedges=posedges.astype(int)
     negedges=(rmat < 0) & (pmat < 0.01)
     negedges=negedges.astype(int)
-    pe=ipmats[posedges.flatten().astype(bool),:]
-    ne=ipmats[negedges.flatten().astype(bool),:]
+    pe=ipmat[posedges.flatten().astype(bool),:]
+    ne=ipmat[negedges.flatten().astype(bool),:]
     pe=pe.sum(axis=0)/2
     ne=ne.sum(axis=0)/2
 
