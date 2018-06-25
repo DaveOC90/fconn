@@ -62,6 +62,8 @@ def run_validate(ipmats,pheno,cvtype):
         behav_pred_pos=np.zeros([numsubs])
         behav_pred_neg=np.zeros([numsubs])
         for loo in range(0,numsubs):
+
+        	print("Running LOO, sub no:",loo)
       
             train_mats=np.delete(ipmats,[loo],axis=1)
             train_pheno=np.delete(pheno,[loo],axis=0)
