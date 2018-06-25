@@ -1,8 +1,8 @@
 import numpy as np 
 import scipy as sp
-from matplotlib import pyplot as plt
-import seaborn as sns
-
+#from matplotlib import pyplot as plt
+#import seaborn as sns
+import glob
 
 def read_mats(iplist):
 
