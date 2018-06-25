@@ -101,9 +101,7 @@ def shred_data_run():
     x=[pd.read_csv(m,sep='\t',header=None) for m in iplist]
     x=[df.dropna(axis=1).values for df in x]
     ipmats=np.stack(x,axis=2)
-    numsubs=ipmats.shape[2]
-    ipmats=np.reshape(ipmats,[-1,numsubs])
     phenofilt=pheno[pheno.Subject.isin(usesubs)]
     pmatvals=phenofilt['PMAT24_A_CR'].values
 
-    return ipmats,phenofilt
+    return ipmats,pmatvals
