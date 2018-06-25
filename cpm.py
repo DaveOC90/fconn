@@ -61,13 +61,13 @@ def run_validate(ipmats,pheno,cvtype):
         behav_pred_neg=np.zeros[numsubs]
         for loo in range(0,numsubs):
       
-          train_mats=np.delete(ipmats,[loo],axis=1)
-          train_pheno=np.delete(pheno,[loo],axis=0)
+            train_mats=np.delete(ipmats,[loo],axis=1)
+            train_pheno=np.delete(pheno,[loo],axis=0)
             
             test_mat=ipmats[:,loo]
             test_phenp=pheno[loo]
 
-          pos_fit,neg_fit,posedges,negedges=train_cpm(train_mats,train_pheno)
+            pos_fit,neg_fit,posedges,negedges=train_cpm(train_mats,train_pheno)
 
             pe=np.sum(test_mat[posedges.flatten().astype(bool),:],axis=1)/2
             ne=np.sum(test_mat[negedges.flatten().astype(bool),:],axis=1)/2
@@ -86,7 +86,7 @@ def run_validate(ipmats,pheno,cvtype):
 
 
 def shred_data_run():
-	mats=glob.glob('*WM*LR*_GSR*.txt')
+    mats=glob.glob('*WM*LR*_GSR*.txt')
     mats=list(sorted(mats))
     pheno=pd.read_csv('unrestricted_dustin_6_21_2018_20_47_17.csv')
     subs=[m.split('_')[0] for m in mats]
