@@ -71,8 +71,8 @@ def run_validate(ipmats,pheno,cvtype):
 
             pos_fit,neg_fit,posedges,negedges=train_cpm(train_mats,train_pheno)
 
-            pe=np.sum(test_mat[posedges.flatten().astype(bool)],axis=1)/2
-            ne=np.sum(test_mat[negedges.flatten().astype(bool)],axis=1)/2
+            pe=np.sum(test_mat[posedges.flatten().astype(bool)])/2
+            ne=np.sum(test_mat[negedges.flatten().astype(bool)])/2
 
             if pos_fit:
                 behav_pred_pos[loo]=pos_fit[0]*pe + pos_fit[1]
