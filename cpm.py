@@ -14,7 +14,7 @@ def read_mats(iplist):
 
 
 
-def train_cpm(ipmat,pheno)
+def train_cpm(ipmat,pheno):
 
     """
     Accepts input matrices and pheno data
