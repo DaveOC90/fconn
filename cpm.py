@@ -56,7 +56,7 @@ def run_validate(ipmats,pheno,cvtype):
 
     
 
-    if cvtype = 'LOO':
+    if cvtype == 'LOO':
         behav_pred_pos=np.zeros[numsubs]
         behav_pred_neg=np.zeros[numsubs]
         for loo in range(0,numsubs):
