@@ -5,6 +5,8 @@ import pandas as pd
 #import seaborn as sns
 import glob
 from scipy import stats
+import random
+
 
 def read_mats(iplist):
 
@@ -24,8 +26,8 @@ def train_cpm(ipmat,pheno):
     """
 
     cc=[stats.pearsonr(pheno,im) for im in ipmat]
-    rmat=np.array([c[1] for c in cc])
-    pmat=np.array([c[0] for c in cc])
+    rmat=np.array([c[0] for c in cc])
+    pmat=np.array([c[1] for c in cc])
     rmat=np.reshape(rmat,[268,268])
     pmat=np.reshape(pmat,[268,268])
     posedges=(rmat > 0) & (pmat < 0.01)
@@ -87,7 +89,91 @@ def run_validate(ipmats,pheno,cvtype):
             else:
                 behav_pred_neg[loo]='nan'
 
-    return behav_pred_pos,behav_pred_neg
+        
+        Rpos=stats.pearsonr(behav_pred_pos,pheno)[0]
+        Rneg=stats.pearsonr(behav_pred_neg,pheno)[0]
+
+        return Rpos,Rneg
+
+
+    elif cvtype == '5k':
+        bp,bn,ba=kfold_cpm(ipmats,pheno,numsubs,5)
+
+    elif cvtype == '10k':
+        bp,bn,ba=kfold_cpm(ipmats,pheno,numsubs,10)
+
+    elif cvtype == 'splithalf':
+        bp,bn,ba=kfold_cpm(ipmats,pheno,numsubs,2)
+
+    else:
+        raise Exception('cvtype must be LOO, 5k, 10k, or splithalf')
+
+ 
+    ccp=np.array([stats.pearsonr(bp[i,:],ba[i,:]) for i in range(0,5)])
+    Rpos_mean=ccp.mean(axis=0)[0]
+
+
+    ccn=np.array([stats.pearsonr(bn[i,:],ba[i,:]) for i in range(0,5)])
+    Rneg_mean=ccn.mean(axis=0)[0]
+
+
+    return Rpos_mean,Rneg_mean
+    
+
+
+def kfold_cpm(ipmats,pheno,numsubs,k):
+    randinds=np.arange(0,numsubs)
+    random.shuffle(randinds)
+
+    samplesize=int(np.floor(float(numsubs)/k))
+
+    behav_pred_pos=np.zeros([k,samplesize])
+    behav_pred_neg=np.zeros([k,samplesize])
+
+    behav_actual=np.zeros([k,samplesize])
+
+    for fold in range(0,k):
+        print("Running fold:",fold+1)
+        si=fold*samplesize
+        fi=(fold+1)*samplesize
+
+
+        if fold != k-1:
+            testinds=randinds[si:fi]
+        else:
+            testinds=randinds[si:]
+
+        traininds=~np.isin(randinds,testinds)
+        
+        trainmats=ipmats[:,traininds]
+        trainpheno=pheno[traininds]
+ 
+        testmats=ipmats[:,testinds]
+        testpheno=pheno[testinds]
+
+        behav_actual[fold,:]=testpheno
+
+
+        pos_fit,neg_fit,posedges,negedges=train_cpm(trainmats,trainpheno)
+
+        pe=np.sum(testmats[posedges.flatten().astype(bool),:], axis=0)/2
+        ne=np.sum(testmats[negedges.flatten().astype(bool),:], axis=0)/2
+
+
+        if len(pos_fit) > 0:
+            behav_pred_pos[fold,:]=pos_fit[0]*pe + pos_fit[1]
+        else:
+            behav_pred_pos[fold,:]='nan'
+
+        if len(neg_fit) > 0:
+            behav_pred_neg[fold,:]=neg_fit[0]*ne + neg_fit[1]
+        else:
+            behav_pred_neg[fold,:]='nan'
+
+    return behav_pred_pos,behav_pred_neg,behav_actual
+
+
+
 
 
 def shred_data_run():
@@ -108,4 +194,4 @@ def shred_data_run():
     phenofilt=pheno[pheno.Subject.isin(usesubs)]
     pmatvals=phenofilt['PMAT24_A_CR'].values
 
-    return ipmats,pmatvals
+    return ipmats,pmatvals,usesubs
