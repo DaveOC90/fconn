@@ -173,7 +173,39 @@ def kfold_cpm(ipmats,pheno,numsubs,k):
     return behav_pred_pos,behav_pred_neg,behav_actual
 
 
+def sample_500(ipmats,pheno,cvtype):
 
+    numsubs=ipmats.shape[2]
+
+    randinds=np.arange(0,numsubs)
+    random.shuffle(randinds)
+
+    randinds500=randinds[:500]
+
+    ipmats_rand=ipmats[:,:,randinds500]
+    pheno_rand=pheno[randinds500]
+
+    opdict={}
+
+    Rpos_loo,Rneg_loo=run_validate(ipmats_rand,pheno_rand,'LOO')
+    
+    Rpos_2k,Rneg_2k=run_validate(ipmats_rand,pheno_rand,'splithalf')
+
+    Rpos_5k,Rneg_5k=run_validate(ipmats_rand,pheno_rand,'5k')
+
+    Rpos_10k,Rneg_10k=run_validate(ipmats_rand,pheno_rand,'10k')
+
+    opdict['LOO_Rpos'] = Rpos_loo
+    opdict['LOO_Rneg'] = Rneg_loo
+    opdict['2k_Rpos'] = Rpos_2k
+    opdict['2k_Rneg'] = Rneg_2k
+    opdict['5k_Rpos'] = Rpos_5k
+    opdict['5k_Rneg'] = Rneg_5k
+    opdict['10k_Rpos'] = Rpos_10k
+    opdict['10k_Rneg'] = Rneg_10k
+    opdict['Sample_Indices']=randinds500
+
+    return
 
 
 def shred_data_run():
