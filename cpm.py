@@ -77,12 +77,12 @@ def run_validate(ipmats,pheno,cvtype):
             pe=np.sum(test_mat[posedges.flatten().astype(bool)])/2
             ne=np.sum(test_mat[negedges.flatten().astype(bool)])/2
 
-            if pos_fit:
+            if len(pos_fit) > 0:
                 behav_pred_pos[loo]=pos_fit[0]*pe + pos_fit[1]
             else:
                 behav_pred_pos[loo]='nan'
 
-            if neg_fit:
+            if len(neg_fit) > 0:
                behav_pred_neg[loo]=neg_fit[0]*ne + neg_fit[1]
             else:
                 behav_pred_neg[loo]='nan'
