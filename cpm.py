@@ -37,12 +37,13 @@ def train_cpm(ipmat,pheno):
     pe=pe.sum(axis=0)/2
     ne=ne.sum(axis=0)/2
 
-    if np.sum(pe) > 0:
+
+    if np.sum(pe) != 0:
         fit_pos=np.polyfit(pe,pheno,1)
     else:
         fit_pos=[]
 
-    if np.sum(ne) > 0:
+    if np.sum(ne) != 0:
         fit_neg=np.polyfit(ne,pheno,1)
     else:
         fit_neg=[]
