@@ -205,7 +205,8 @@ def sample_500(ipmats,pheno,cvtype):
     opdict['10k_Rneg'] = Rneg_10k
     opdict['Sample_Indices']=randinds500
 
-    return
+    return opdict
+    
 
 
 def shred_data_run():
