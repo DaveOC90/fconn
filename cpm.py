@@ -99,22 +99,40 @@ def run_validate(ipmats,pheno,cvtype):
     elif cvtype == '5k':
         bp,bn,ba=kfold_cpm(ipmats,pheno,numsubs,5)
 
+
+
+        ccp=np.array([stats.pearsonr(bp[i,:],ba[i,:]) for i in range(0,5)])
+        Rpos_mean=ccp.mean(axis=0)[0]
+
+        ccn=np.array([stats.pearsonr(bn[i,:],ba[i,:]) for i in range(0,5)])
+        Rneg_mean=ccn.mean(axis=0)[0]
+
+
+
     elif cvtype == '10k':
         bp,bn,ba=kfold_cpm(ipmats,pheno,numsubs,10)
+
+
+        ccp=np.array([stats.pearsonr(bp[i,:],ba[i,:]) for i in range(0,10)])
+        Rpos_mean=ccp.mean(axis=0)[0]
+
+        ccn=np.array([stats.pearsonr(bn[i,:],ba[i,:]) for i in range(0,10)])
+        Rneg_mean=ccn.mean(axis=0)[0]
+
+
 
     elif cvtype == 'splithalf':
         bp,bn,ba=kfold_cpm(ipmats,pheno,numsubs,2)
 
+        ccp=np.array([stats.pearsonr(bp[i,:],ba[i,:]) for i in range(0,2)])
+        Rpos_mean=ccp.mean(axis=0)[0]
+
+        ccn=np.array([stats.pearsonr(bn[i,:],ba[i,:]) for i in range(0,2)])
+        Rneg_mean=ccn.mean(axis=0)[0]
+
+
     else:
         raise Exception('cvtype must be LOO, 5k, 10k, or splithalf')
-
- 
-    ccp=np.array([stats.pearsonr(bp[i,:],ba[i,:]) for i in range(0,5)])
-    Rpos_mean=ccp.mean(axis=0)[0]
-
-
-    ccn=np.array([stats.pearsonr(bn[i,:],ba[i,:]) for i in range(0,5)])
-    Rneg_mean=ccn.mean(axis=0)[0]
 
 
     return Rpos_mean,Rneg_mean
@@ -206,7 +224,7 @@ def sample_500(ipmats,pheno,cvtype):
     opdict['Sample_Indices']=randinds500
 
     return opdict
-    
+
 
 
 def shred_data_run():
