@@ -279,7 +279,7 @@ def shred_data_run_pnc():
     subs_mats=[i.split('_')[0] for i in iplist]
     subs_pheno=list(map(str,df_filter.SUBJID.unique()))
     subs_pheno=[sp.split('.')[0] for sp in subs_pheno]
-    substouse=list(set(subs_mats) & set(subs_pheno))
+    substouse=sorted(list(set(subs_mats) & set(subs_pheno)))
 
     iplist=[ip for ip in iplist if any([s in ip for s in substouse])]
 
