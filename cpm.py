@@ -26,6 +26,9 @@ def train_cpm(ipmat,pheno):
     """
 
     cc=[stats.pearsonr(pheno,im) for im in ipmat]
+
+
+
     rmat=np.array([c[0] for c in cc])
     pmat=np.array([c[1] for c in cc])
     rmat=np.reshape(rmat,[268,268])
@@ -52,6 +55,26 @@ def train_cpm(ipmat,pheno):
 
     return fit_pos,fit_neg,posedges,negedges
 
+
+def pairwise_corr(X,Y):
+
+    #A=A.astype('float64')
+
+    n=X.shape[0]
+    
+    xbar=X.mean(1)
+    ybar=Y.mean(1)
+
+    xminusxbar=X-np.vstack(xbar)
+    yminusybar=Y-np.vstack(ybar)
+
+    xminusxbarsquare=xminusxbar**2
+    yminusybarsquare=yminusybar**2
+
+    numer=np.dot(xminusxbar.T,yminusybar)
+    denom=np.vstack(np.sqrt(xminusxbarsquare.sum(1))*np.sqrt(yminusybarsquare.sum(1)))
+
+    return numer/denom
 
 
 def run_validate(ipmats,pheno,cvtype):
@@ -227,7 +250,7 @@ def sample_500(ipmats,pheno,cvtype):
 
 
 
-def shred_data_run():
+def shred_data_run_hcp():
     mats=glob.glob('*WM*LR*_GSR*.txt')
     mats=list(sorted(mats))
     pheno=pd.read_csv('unrestricted_dustin_6_21_2018_20_47_17.csv')
@@ -246,3 +269,23 @@ def shred_data_run():
     pmatvals=phenofilt['PMAT24_A_CR'].values
 
     return ipmats,pmatvals,usesubs
+
+
+def shred_data_run_pnc():
+    iplist=sorted(glob.glob('*matrix.txt'))
+    pheno=pd.read_csv('phenotypes_info.csv')
+    df_filter=pheno[['SUBJID','pmat_rter']]
+    df_filter=df_filter.dropna()
+    subs_mats=[i.split('_')[0] for i in iplist]
+    subs_pheno=list(map(str,df_filter.SUBJID.unique()))
+    subs_pheno=[sp.split('.')[0] for sp in subs_pheno]
+    substouse=list(set(subs_mats) & set(subs_pheno))
+
+    iplist=[ip for ip in iplist if any([s in ip for s in substouse])]
+
+    mats=[pd.read_csv(m,sep='\t',header=None).dropna(axis=1).values for m in iplist]
+    ipmats=np.stack(mats,axis=2)
+    pmatvals=df_filter.sort_values('SUBJID').pmat_rter.values
+    
+
+    return ipmats,pmatvals,substouse
