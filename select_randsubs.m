@@ -12,7 +12,7 @@ function res_struct=select_randsubs(ipmats, behav, numsubs, numiters, thresh, ip
         randbehav=behav(randinds);
 
         % LOOCV
-         [res_struct.loo(iter,1),res_struct.loo(iter,2),res_struct.loo(iter,3),res_struct.loo(iter,4)] = cpm_cv(randipmats, randbehav, numsubs, thresh);
+        [res_struct.loo(iter,1),res_struct.loo(iter,2),res_struct.loo(iter,3),res_struct.loo(iter,4)] = cpm_cv(randipmats, randbehav, numsubs, thresh);
         % Split half
         [res_struct.k2(iter,1),res_struct.k2(iter,2),res_struct.k2(iter,3),res_struct.k2(iter,4)] = cpm_cv(randipmats, randbehav, 2, thresh);
         % K = 5
@@ -30,9 +30,6 @@ function res_struct=select_randsubs(ipmats, behav, numsubs, numiters, thresh, ip
 
         behav_pred_pos_ext = fit_pos(1)*ext_sumpos + fit_pos(2);
         behav_pred_neg_ext = fit_neg(1)*ext_sumneg + fit_neg(2);
-        
-        test_sumpos = sum(test_vcts.*)/2;
-        test_sumneg = sum(test_vcts.*)/2;
         
         
         [Rpos_ext,Ppos_ext]=corr(behav_ex,behav_pred_pos_ext');
