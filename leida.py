@@ -8,8 +8,6 @@ import sklearn as skl
 from sklearn import skl,svm,cluster
 import pandas as pd
 import glob
-
-
 def cosine_similarity(timeseries):
     """
     Function to calculate similarity between timeseries as a
@@ -177,7 +175,7 @@ def kcluster_train(ipfeatures,nclust):
 
 
 
-def moody_data_split():
+def moody_data_split(rand=False):
     mats=glob.glob("/mnt/store1/mridata2/mri_group/HCP_data/HCP_900_DATA/REST_LR/matrices/*REST*LR*_GSR*roimean.txt")
 
     pmatdf=pd.read_csv('/home/dmo39/pmatfilter.csv')
@@ -188,7 +186,13 @@ def moody_data_split():
     imnets_load=io.loadmat('/mnt/store2/mri_group/dave_data/code/LEiDA-master/LEiDA/netrank.mat')
     imnets=imnets_load['imnets']
 
-    split_ts(matstouse,imnets,'/mnt/store2/mri_group/dave_data/code/LEiDA-master/LEiDA/NetParcelCorrMats_HCP.mat')
+    opname='/mnt/store2/mri_group/dave_data/code/LEiDA-master/LEiDA/NetParcelCorrMats_HCP.mat'
+
+    if rand:
+        imnets=np.random.permutation(imnets)
+        opname=opname.replace('.mat','_randassign.mat')
+ 
+    split_ts(matstouse,imnets,opname)
 
 
 def split_ts(ipmats, statelbls, savepath):
