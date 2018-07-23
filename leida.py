@@ -195,7 +195,7 @@ def moody_data_split(rand=False):
 
 
     if rand:
-    	print("You chose to randomize!")
+        print("You chose to randomize!")
         imnets=np.random.permutation(imnets)
         opname=opname.replace('.mat','_randassign.mat')
  
