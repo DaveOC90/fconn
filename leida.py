@@ -177,6 +177,10 @@ def kcluster_train(ipfeatures,nclust):
 
 
 def moody_data_split(rand=False):
+
+
+    print("Loading data and creating subjects list")
+
     mats=glob.glob("/mnt/store1/mridata2/mri_group/HCP_data/HCP_900_DATA/REST_LR/matrices/*REST*LR*_GSR*roimean.txt")
 
     pmatdf=pd.read_csv('/home/dmo39/pmatfilter.csv')
@@ -189,10 +193,14 @@ def moody_data_split(rand=False):
 
     opname='/mnt/store2/mri_group/dave_data/code/LEiDA-master/LEiDA/NetParcelCorrMats_HCP.mat'
 
+
     if rand:
+    	print("You chose to randomize!")
         imnets=np.random.permutation(imnets)
         opname=opname.replace('.mat','_randassign.mat')
  
+    print("output file will be:", opname)
+
     split_ts(matstouse,imnets,opname)
 
 
