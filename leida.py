@@ -3,7 +3,7 @@ import scipy as sp
 from scipy import io 
 from scipy import signal as sg
 #from matplotlib import pyplot as plt
-import seaborn as sns
+#import seaborn as sns
 import sklearn as skl
 from sklearn import svm,cluster
 import pandas as pd
