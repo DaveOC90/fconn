@@ -214,7 +214,7 @@ def split_ts(ipmats, statelbls, savepath):
 
             print('Network ',netnum, 'Subject', dfnum)
 
-            imnet=imnets[:,dfnum]
+            imnet=statelbls[:,dfnum]
             subdf=roidf[imnet==netnum]
             corrmat=subdf.corr().values
             group_list.append(corrmat)
