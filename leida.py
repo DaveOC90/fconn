@@ -188,7 +188,9 @@ def moody_data_split(rand=False):
 
     matstouse=sorted([m for m in mats if any(s in m for s in substouse)])
 
-    imnets_load=io.loadmat('/mnt/store2/mri_group/dave_data/code/LEiDA-master/LEiDA/netrank.mat')
+    imn_file='/mnt/store2/mri_group/dave_data/code/LEiDA-master/LEiDA/netrank.mat'
+
+    imnets_load=io.loadmat(imn_file)
     imnets=imnets_load['imnets']
 
     opname='/mnt/store2/mri_group/dave_data/code/LEiDA-master/LEiDA/NetParcelCorrMats_HCP.mat'
@@ -197,6 +199,14 @@ def moody_data_split(rand=False):
     if rand:
         print("You chose to randomize!")
         imnets=np.random.permutation(imnets)
+
+        opimnets={}
+        opimnets['imnets']=imnets
+
+        io.savemat(imn_file.replace('.mat','_random.mat'),opimnets)
+
+
+
         opname=opname.replace('.mat','_randassign.mat')
  
     print("output file will be:", opname)
@@ -211,10 +221,13 @@ def split_ts(ipmats, statelbls, savepath):
 
     matnames=[m.split('/')[-1] for m in ipmats]
 
+    print("reading matrices")
+
     roidfs=[pd.read_csv(m,index_col=0,sep='\t').dropna(axis=1) for m in ipmats]
 
     data_dct={}
 
+    print("starting splitting")
     for netnum in np.unique(statelbls):
         group_list=[]    
 
