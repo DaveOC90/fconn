@@ -1,6 +1,8 @@
 function res_struct=select_randsubs_sametrain(ipmats, behav, numtrain, numiters, thresh, ipmats_ex, behav_ex)
 
     res_struct=struct();
+    
+    behav_popvar=mean((behav-mean(behav))^2);
 
     for iter = 1:numiters
         
@@ -21,13 +23,13 @@ function res_struct=select_randsubs_sametrain(ipmats, behav, numtrain, numiters,
         randbehav=behav(randinds);
 
         % LOOCV
-        [res_struct.loo(iter,1),res_struct.loo(iter,2),res_struct.loo(iter,3),res_struct.loo(iter,4)] = cpm_cv(randipmats(:,1:looind), randbehav(1:looind), looind, thresh);
+        [res_struct.loo(iter,1),res_struct.loo(iter,2),res_struct.loo(iter,3),res_struct.loo(iter,4),res_struct.loo(iter,5),res_struct.loo(iter,6)] = cpm_cv(randipmats(:,1:looind), randbehav(1:looind), looind, thresh,behav_popvar);
         % Split half
-        [res_struct.k2(iter,1),res_struct.k2(iter,2),res_struct.k2(iter,3),res_struct.k2(iter,4)] = cpm_cv(randipmats(:,1:k2ind), randbehav(1:k2ind), 2, thresh);
+        [res_struct.k2(iter,1),res_struct.k2(iter,2),res_struct.k2(iter,3),res_struct.k2(iter,4),res_struct.loo(iter,5),res_struct.loo(iter,6)] = cpm_cv(randipmats(:,1:k2ind), randbehav(1:k2ind), 2, thresh,behav_popvar);
         % K = 5
-        [res_struct.k5(iter,1),res_struct.k5(iter,2),res_struct.k5(iter,3),res_struct.k5(iter,4)] = cpm_cv(randipmats(:,1:k5ind), randbehav(1:k5ind), 5, thresh);
+        [res_struct.k5(iter,1),res_struct.k5(iter,2),res_struct.k5(iter,3),res_struct.k5(iter,4),res_struct.loo(iter,5),res_struct.loo(iter,6)] = cpm_cv(randipmats(:,1:k5ind), randbehav(1:k5ind), 5, thresh,behav_popvar);
         % K = 10
-        [res_struct.k10(iter,1),res_struct.k10(iter,2),res_struct.k10(iter,3),res_struct.k10(iter,4)] = cpm_cv(randipmats(:,1:k10ind), randbehav(1:k10ind), 10, thresh);
+        [res_struct.k10(iter,1),res_struct.k10(iter,2),res_struct.k10(iter,3),res_struct.k10(iter,4),res_struct.loo(iter,5),res_struct.loo(iter,6)] = cpm_cv(randipmats(:,1:k10ind), randbehav(1:k10ind), 10, thresh,behav_popvar);
         % External Val
         [fit_pos,fit_neg, pos_mask, neg_mask] = train_cpm(randipmats(:,1:numtrain),randbehav(1:numtrain),thresh);
         
@@ -43,8 +45,15 @@ function res_struct=select_randsubs_sametrain(ipmats, behav, numtrain, numiters,
         
         [Rpos_ext,Ppos_ext]=corr(behav_ex,behav_pred_pos_ext');
         [Rneg_ext,Pneg_ext]=corr(behav_ex,behav_pred_neg_ext');
+        
+        
+        mse_pos=mean((test_behav_gather-behav_pred_pos_ext).^2);
+        mse_neg=mean((test_behav_gather-behav_pred_pos_ext).^2);
+    
+        Rmsepos=1-mse_pos/popvar;
+        Rmseneg=1-mse_neg/popvar;
 
-        res_struct.external(iter,:) = [Rpos_ext, Rneg_ext, Ppos_ext, Pneg_ext];
+        res_struct.external(iter,:) = [Rpos_ext, Rneg_ext, Ppos_ext, Pneg_ext, Rmsepos, Rmseneg];
         
     end
 

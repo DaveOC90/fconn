@@ -1,4 +1,4 @@
-function [Rpos,Rneg,Ppos,Pneg] = cpm_cv(ipmats, behav, kfolds, thresh)
+function [Rpos,Rneg,Ppos,Pneg,Rmsepos,Rmseneg] = cpm_cv(ipmats, behav, kfolds, thresh, popvar)
     
     nsubs=size(ipmats,2);
     randinds=randperm(nsubs);
@@ -53,5 +53,10 @@ function [Rpos,Rneg,Ppos,Pneg] = cpm_cv(ipmats, behav, kfolds, thresh)
     [Rpos,Ppos]=corr(test_behav_gather,behav_pred_pos);
     [Rneg,Pneg]=corr(test_behav_gather,behav_pred_neg);
     
+    mse_pos=mean((test_behav_gather-behav_pred_pos).^2);
+    mse_neg=mean((test_behav_gather-behav_pred_neg).^2);
+    
+    Rmsepos=1-mse_pos/popvar;
+    Rmseneg=1-mse_neg/popvar;
     
 end
