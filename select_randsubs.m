@@ -41,8 +41,8 @@ function res_struct=select_randsubs(ipmats, behav, numsubs, numiters, thresh, ip
         mse_pos=mean((test_behav_gather-behav_pred_pos_ext).^2);
         mse_neg=mean((test_behav_gather-behav_pred_pos_ext).^2);
     
-        Rmsepos=1-mse_pos/popvar;
-        Rmseneg=1-mse_neg/popvar;
+        Rmsepos=1-mse_pos/behav_popvar;
+        Rmseneg=1-mse_neg/behav_popvar;
         
         res_struct.external(iter,:) = [Rpos_ext, Rneg_ext, Ppos_ext, Pneg_ext, Rmsepos, Rmseneg];
         
