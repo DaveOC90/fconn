@@ -25,11 +25,11 @@ function res_struct=select_randsubs_sametrain(ipmats, behav, numtrain, numiters,
         % LOOCV
         [res_struct.loo(iter,1),res_struct.loo(iter,2),res_struct.loo(iter,3),res_struct.loo(iter,4),res_struct.loo(iter,5),res_struct.loo(iter,6)] = cpm_cv(randipmats(:,1:looind), randbehav(1:looind), looind, thresh,behav_popvar);
         % Split half
-        [res_struct.k2(iter,1),res_struct.k2(iter,2),res_struct.k2(iter,3),res_struct.k2(iter,4),res_struct.loo(iter,5),res_struct.loo(iter,6)] = cpm_cv(randipmats(:,1:k2ind), randbehav(1:k2ind), 2, thresh,behav_popvar);
+        [res_struct.k2(iter,1),res_struct.k2(iter,2),res_struct.k2(iter,3),res_struct.k2(iter,4),res_struct.loo(iter,5),res_struct.k2(iter,6)] = cpm_cv(randipmats(:,1:k2ind), randbehav(1:k2ind), 2, thresh,behav_popvar);
         % K = 5
-        [res_struct.k5(iter,1),res_struct.k5(iter,2),res_struct.k5(iter,3),res_struct.k5(iter,4),res_struct.loo(iter,5),res_struct.loo(iter,6)] = cpm_cv(randipmats(:,1:k5ind), randbehav(1:k5ind), 5, thresh,behav_popvar);
+        [res_struct.k5(iter,1),res_struct.k5(iter,2),res_struct.k5(iter,3),res_struct.k5(iter,4),res_struct.loo(iter,5),res_struct.k5(iter,6)] = cpm_cv(randipmats(:,1:k5ind), randbehav(1:k5ind), 5, thresh,behav_popvar);
         % K = 10
-        [res_struct.k10(iter,1),res_struct.k10(iter,2),res_struct.k10(iter,3),res_struct.k10(iter,4),res_struct.loo(iter,5),res_struct.loo(iter,6)] = cpm_cv(randipmats(:,1:k10ind), randbehav(1:k10ind), 10, thresh,behav_popvar);
+        [res_struct.k10(iter,1),res_struct.k10(iter,2),res_struct.k10(iter,3),res_struct.k10(iter,4),res_struct.loo(iter,5),res_struct.k10(iter,6)] = cpm_cv(randipmats(:,1:k10ind), randbehav(1:k10ind), 10, thresh,behav_popvar);
         % External Val
         [fit_pos,fit_neg, pos_mask, neg_mask] = train_cpm(randipmats(:,1:numtrain),randbehav(1:numtrain),thresh);
         
