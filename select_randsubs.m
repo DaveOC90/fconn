@@ -38,7 +38,7 @@ function res_struct=select_randsubs(ipmats, behav, numsubs, numiters, thresh, ip
         [Rpos_ext,Ppos_ext]=corr(behav_ex,behav_pred_pos_ext');
         [Rneg_ext,Pneg_ext]=corr(behav_ex,behav_pred_neg_ext');
         
-        behav_popvar_ext=ean((behav_ext-mean(behav_ext)).^2);
+        behav_popvar_ext=ean((behav_ex-mean(behav_ex)).^2);
         
         mse_pos=mean((behav_ex-behav_pred_pos_ext').^2);
         mse_neg=mean((behav_ex-behav_pred_neg_ext').^2);
