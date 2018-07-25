@@ -274,7 +274,7 @@ def shred_data_run_hcp():
 def shred_data_run_pnc():
     iplist=sorted(glob.glob('*matrix.txt'))
     pheno=pd.read_csv('phenotypes_info.csv')
-    df_filter=pheno[['SUBJID','pmat_rter']]
+    df_filter=pheno[['SUBJID','pmat_cr']]
     df_filter=df_filter.dropna()
     subs_mats=[i.split('_')[0] for i in iplist]
     subs_pheno=list(map(str,df_filter.SUBJID.unique()))
