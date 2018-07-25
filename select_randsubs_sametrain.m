@@ -51,8 +51,8 @@ function res_struct=select_randsubs_sametrain(ipmats, behav, numtrain, numiters,
         mse_pos=mean((behav_ex-behav_pred_pos_ext').^2);
         mse_neg=mean((behav_ex-behav_pred_neg_ext').^2);
     
-        Rmsepos=1-mse_pos/behav_popvar_ext;
-        Rmseneg=1-mse_neg/behav_popvar_ext;
+        Rmsepos=sqrt(1-mse_pos/behav_popvar_ext);
+        Rmseneg=sqrt(1-mse_neg/behav_popvar_ext);
 
         res_struct.external(iter,:) = [Rpos_ext, Rneg_ext, Ppos_ext, Pneg_ext, Rmsepos, Rmseneg];
         

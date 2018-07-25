@@ -56,7 +56,7 @@ function [Rpos,Rneg,Ppos,Pneg,Rmsepos,Rmseneg] = cpm_cv(ipmats, behav, kfolds, t
     mse_pos=mean((test_behav_gather-behav_pred_pos).^2);
     mse_neg=mean((test_behav_gather-behav_pred_neg).^2);
     
-    Rmsepos=1-mse_pos/popvar;
-    Rmseneg=1-mse_neg/popvar;
+    Rmsepos=sqrt(1-mse_pos/popvar);
+    Rmseneg=sqrt(1-mse_neg/popvar);
     
 end
