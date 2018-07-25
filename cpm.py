@@ -285,7 +285,7 @@ def shred_data_run_pnc():
 
     mats=[pd.read_csv(m,sep='\t',header=None).dropna(axis=1).values for m in iplist]
     ipmats=np.stack(mats,axis=2)
-    pmatvals=df_filter.sort_values('SUBJID').pmat_rter.values
+    pmatvals=df_filter.sort_values('SUBJID').pmat_cr.values
     
 
     return ipmats,pmatvals,substouse
