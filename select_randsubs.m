@@ -38,11 +38,13 @@ function res_struct=select_randsubs(ipmats, behav, numsubs, numiters, thresh, ip
         [Rpos_ext,Ppos_ext]=corr(behav_ex,behav_pred_pos_ext');
         [Rneg_ext,Pneg_ext]=corr(behav_ex,behav_pred_neg_ext');
         
+        behav_popvar_ext=ean((behav_ext-mean(behav_ext)).^2);
+        
         mse_pos=mean((behav_ex-behav_pred_pos_ext').^2);
         mse_neg=mean((behav_ex-behav_pred_neg_ext').^2);
     
-        Rmsepos=1-mse_pos/behav_popvar;
-        Rmseneg=1-mse_neg/behav_popvar;
+        Rmsepos=1-mse_pos/behav_popvar_ext;
+        Rmseneg=1-mse_neg/behav_popvar_ext;
         
         res_struct.external(iter,:) = [Rpos_ext, Rneg_ext, Ppos_ext, Pneg_ext, Rmsepos, Rmseneg];
         
