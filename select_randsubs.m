@@ -2,7 +2,7 @@ function res_struct=select_randsubs(ipmats, behav, numsubs, numiters, thresh, ip
 
     res_struct=struct();
 
-    behav_popvar=mean((behav-mean(behav))^2);
+    behav_popvar=mean((behav-mean(behav)).^2);
 
     
     for iter = 1:numiters
