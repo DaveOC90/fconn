@@ -47,8 +47,8 @@ function res_struct=select_randsubs_sametrain(ipmats, behav, numtrain, numiters,
         [Rneg_ext,Pneg_ext]=corr(behav_ex,behav_pred_neg_ext');
         
         
-        mse_pos=mean((test_behav_gather-behav_pred_pos_ext).^2);
-        mse_neg=mean((test_behav_gather-behav_pred_pos_ext).^2);
+        mse_pos=mean((behav_ex-behav_pred_pos_ext).^2);
+        mse_neg=mean((behav_ex-behav_pred_pos_ext).^2);
     
         Rmsepos=1-mse_pos/behav_popvar;
         Rmseneg=1-mse_neg/behav_popvar;
