@@ -1,4 +1,4 @@
-function [Rpos,Rneg,Ppos,Pneg,Rmsepos,Rmseneg] = cpm_cv(ipmats, behav, kfolds, thresh, popvar)
+function [Rpos,Rneg,Ppos,Pneg,Rmsepos,Rmseneg,test_behav_gather,behav_pred_pos,behav_pred_neg] = cpm_cv(ipmats, behav, kfolds, thresh, popvar)
     
     nsubs=size(ipmats,2);
     randinds=randperm(nsubs);
