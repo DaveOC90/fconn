@@ -1,4 +1,4 @@
-function res_struct=select_randsubs(ipmats, behav, numsubs, numiters, thresh, ipmats_ex, behav_ex)
+function [res_struct,pred_behav_struct]=select_randsubs(ipmats, behav, numsubs, numiters, thresh, ipmats_ex, behav_ex)
 
     res_struct=struct();
 
