@@ -1,4 +1,4 @@
-function res_struct=nsubs_iter(ipmats,behav,numiters,thresh)
+function [res_struct,pred_behav_struct]=nsubs_iter(ipmats,behav,numiters,thresh)
 
     res_struct=struct();
 
@@ -35,6 +35,11 @@ function res_struct=nsubs_iter(ipmats,behav,numiters,thresh)
             [Rneg,Pneg]=corr(testbehav,behav_pred_neg');
             
             res_struct.(['train' num2str(trainsubs)])(iter,:)=[Rpos Rneg Ppos Pneg];
+            
+            
+            pred_behav_struct.(['train' num2str(trainsubs)]).predbehavpos(iter,:)=behav_pred_pos;
+            pred_behav_struct.(['train' num2str(trainsubs)]).predbehavneg(iter,:)=behav_pred_neg;
+            pred_behav_struct.(['train' num2str(trainsubs)]).testbehav(iter,:)=testbehav;
             
         end    
         
