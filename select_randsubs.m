@@ -15,7 +15,7 @@ function [res_struct,pred_behav_struct]=select_randsubs(ipmats, behav, numsubs, 
         randinds=randinds(1:numsubs);
         randipmats=ipmats(:,randinds);
         randbehav=behav(randinds);
-        res_struct.subject_inds(iter)=randinds;
+        res_struct.subject_inds(iter,:)=randinds;
         
         
         if normalize
