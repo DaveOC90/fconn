@@ -1,4 +1,4 @@
-function [res_struct,pred_behav_struct]=select_randsubs(ipmats, behav, numsubs, numiters, thresh, ipmats_ex, behav_ex)
+function [res_struct,pred_behav_struct]=select_randsubs(ipmats, behav, numsubs, numiters, thresh, ipmats_ex, behav_ex, normalize)
 
     res_struct=struct();
 
@@ -15,6 +15,20 @@ function [res_struct,pred_behav_struct]=select_randsubs(ipmats, behav, numsubs, 
         randinds=randinds(1:numsubs);
         randipmats=ipmats(:,randinds);
         randbehav=behav(randinds);
+        res_struct.subject_inds(iter)=randinds;
+        
+        
+        if normalize
+            behav_mean=mean(randbehav);
+            behav_var=var(randbehav);
+            randbehav=(randbehav-behav_mean)/behav_var;
+            
+            res_struct.behav_mean(iter)=behav_mean;
+            res_struct.behav_var(iter)=behav_var;
+            
+            behav_ex=(behav_ex-mean(behav_ex))/var(behav_ex);
+            
+        end
 
         % LOOCV
         [res_struct.loo(iter,1),res_struct.loo(iter,2),res_struct.loo(iter,3),res_struct.loo(iter,4),res_struct.loo(iter,5),res_struct.loo(iter,6), ...
