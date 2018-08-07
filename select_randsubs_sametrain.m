@@ -32,8 +32,8 @@ function [res_struct,pred_behav_struct]=select_randsubs_sametrain(ipmats, behav,
         
         res_struct.loo.subject_inds(iter,:)=randinds(1:looind);
         res_struct.k2.subject_inds(iter,:)=randinds;
-        res_struct.k5.subject_inds(iter,:)=randinds(1:k5);
-        res_struct.k10.subject_inds(iter,:)=randinds(1:k10);
+        res_struct.k5.subject_inds(iter,:)=randinds(1:k5ind);
+        res_struct.k10.subject_inds(iter,:)=randinds(1:k10ind);
         
         if normalize
                         
