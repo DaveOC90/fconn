@@ -1,8 +1,8 @@
-function [res_struct,pred_behav_struct]=select_randsubs_sametrain(ipmats, behav, numtrain, numiters, thresh, ipmats_ex, behav_ex, normalize)
+function [res_struct,behav_struct]=select_randsubs_sametrain(ipmats, behav, numtrain, numiters, thresh, ipmats_ex, behav_ex, normalize)
 
     res_struct=struct();
     
-    pred_behav_struct=struct();
+    behav_struct=struct();
     
     behav_popvar=mean((behav-mean(behav)).^2);
 
@@ -76,19 +76,19 @@ function [res_struct,pred_behav_struct]=select_randsubs_sametrain(ipmats, behav,
         
         % LOOCV
         [res_struct.loo(iter,1),res_struct.loo(iter,2),res_struct.loo(iter,3),res_struct.loo(iter,4),res_struct.loo(iter,5),res_struct.loo(iter,6), ...
-            pred_behav_struct.loo.testbehav(iter,:), pred_behav_struct.loo.predbehavpos(iter,:), pred_behav_struct.loo.predbehavneg(iter,:)] ...
+            behav_struct.loo.testbehav(iter,:), behav_struct.loo.predbehavpos(iter,:), behav_struct.loo.predbehavneg(iter,:)] ...
             = cpm_cv(randipmats(:,1:looind), randbehav_loo, looind, thresh,behav_popvar);
         % Split half
         [res_struct.k2(iter,1),res_struct.k2(iter,2),res_struct.k2(iter,3),res_struct.k2(iter,4),res_struct.k2(iter,5),res_struct.k2(iter,6), ...
-            pred_behav_struct.k2.testbehav(iter,:), pred_behav_struct.k2.predbehavpos(iter,:), pred_behav_struct.k2.predbehavneg(iter,:)] ... 
+            behav_struct.k2.testbehav(iter,:), behav_struct.k2.predbehavpos(iter,:), behav_struct.k2.predbehavneg(iter,:)] ... 
             = cpm_cv(randipmats(:,1:k2ind), randbehav_k2, 2, thresh,behav_popvar);
         % K = 5
         [res_struct.k5(iter,1),res_struct.k5(iter,2),res_struct.k5(iter,3),res_struct.k5(iter,4),res_struct.k5(iter,5),res_struct.k5(iter,6), ...
-            pred_behav_struct.k5.testbehav(iter,:), pred_behav_struct.k5.predbehavpos(iter,:), pred_behav_struct.k5.predbehavneg(iter,:)] ...
+            behav_struct.k5.testbehav(iter,:), behav_struct.k5.predbehavpos(iter,:), behav_struct.k5.predbehavneg(iter,:)] ...
             = cpm_cv(randipmats(:,1:k5ind), randbehav_k5, 5, thresh,behav_popvar);
         % K = 10
         [res_struct.k10(iter,1),res_struct.k10(iter,2),res_struct.k10(iter,3),res_struct.k10(iter,4),res_struct.k10(iter,5),res_struct.k10(iter,6), ...
-            pred_behav_struct.k10.testbehav(iter,:), pred_behav_struct.k10.predbehavpos(iter,:), pred_behav_struct.k10.predbehavneg(iter,:)] ...
+            behav_struct.k10.testbehav(iter,:), behav_struct.k10.predbehavpos(iter,:), behav_struct.k10.predbehavneg(iter,:)] ...
              = cpm_cv(randipmats(:,1:k10ind), randbehav_k10, 10, thresh,behav_popvar);
         % External Val
         [fit_pos,fit_neg, pos_mask, neg_mask] = train_cpm(randipmats(:,1:numtrain),randbehav(1:numtrain),thresh);
@@ -121,9 +121,9 @@ function [res_struct,pred_behav_struct]=select_randsubs_sametrain(ipmats, behav,
         res_struct.external(iter,:) = [Rpos_ext, Rneg_ext, Ppos_ext, Pneg_ext, Rmsepos, Rmseneg];
         
         % Record test and predicted behaviour from external dataset testing
-        pred_behav_struct.external.predbehavpos(iter,:)=behav_pred_pos_ext;
-        pred_behav_struct.external.predbehavneg(iter,:)=behav_pred_neg_ext;
-        pred_behav_struct.external.testbehav(iter,:)=behav_ex;
+        behav_struct.external.predbehavpos(iter,:)=behav_pred_pos_ext;
+        behav_struct.external.predbehavneg(iter,:)=behav_pred_neg_ext;
+        behav_struct.external.testbehav(iter,:)=behav_ex;
         
     end
 
