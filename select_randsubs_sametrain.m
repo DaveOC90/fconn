@@ -30,10 +30,10 @@ function [res_struct,pred_behav_struct]=select_randsubs_sametrain(ipmats, behav,
         randbehav_k10=randbehav(1:k10ind);
 
         
-        res_struct.loo.subject_inds(iter,:)=randinds(1:looind);
-        res_struct.k2.subject_inds(iter,:)=randinds;
-        res_struct.k5.subject_inds(iter,:)=randinds(1:k5ind);
-        res_struct.k10.subject_inds(iter,:)=randinds(1:k10ind);
+        behav_struct.loo.subject_inds(iter,:)=randinds(1:looind);
+        behav_struct.k2.subject_inds(iter,:)=randinds;
+        behav_struct.k5.subject_inds(iter,:)=randinds(1:k5ind);
+        behav_struct.k10.subject_inds(iter,:)=randinds(1:k10ind);
         
         if normalize
                         
@@ -42,32 +42,32 @@ function [res_struct,pred_behav_struct]=select_randsubs_sametrain(ipmats, behav,
             behav_var_loo=var(randbehav_loo);
             randbehav_loo=(randbehav_loo-behav_mean_loo)/behav_var_loo;
             
-            res_struct.loo.behav_mean(iter)=behav_mean_loo;
-            res_struct.loo.behav_var(iter)=behav_var_loo;
+            behav_struct.loo.behav_mean(iter)=behav_mean_loo;
+            behav_struct.loo.behav_var(iter)=behav_var_loo;
             
             % K2
             behav_mean_k2=mean(randbehav_k2);
             behav_var_k2=var(randbehav_k2);
             randbehav_k2=(randbehav_k2-behav_mean_k2)/behav_var_k2;
             
-            res_struct.k2.behav_mean(iter)=behav_mean_k2;
-            res_struct.k2.behav_var(iter)=behav_var_k2;
+            behav_struct.k2.behav_mean(iter)=behav_mean_k2;
+            behav_struct.k2.behav_var(iter)=behav_var_k2;
             
             % K5
             behav_mean_k5=mean(randbehav_k5);
             behav_var_k5=var(randbehav_k5);
             randbehav_k5=(randbehav_k5-behav_mean_k5)/behav_var_k5;
             
-            res_struct.k5.behav_mean(iter)=behav_mean_k5;
-            res_struct.k5.behav_var(iter)=behav_var_k5;
+            behav_struct.k5.behav_mean(iter)=behav_mean_k5;
+            behav_struct.k5.behav_var(iter)=behav_var_k5;
             
             % k10
             behav_mean_k10=mean(randbehav_k10);
             behav_var_k10=var(randbehav_k10);
             randbehav_k10=(randbehav_k10-behav_mean_k10)/behav_var_k10;
             
-            res_struct.k10.behav_mean(iter)=behav_mean_k10;
-            res_struct.k10.behav_var(iter)=behav_var_k10;
+            behav_struct.k10.behav_mean(iter)=behav_mean_k10;
+            behav_struct.k10.behav_var(iter)=behav_var_k10;
                         
             behav_ex=(behav_ex-mean(behav_ex))/var(behav_ex);
             
