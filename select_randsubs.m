@@ -84,7 +84,7 @@ function [res_struct,pred_behav_struct]=select_randsubs(ipmats, behav, numsubs, 
         % Record test and predicted behaviour from external dataset testing
         pred_behav_struct.external.predbehavpos(iter,:)=behav_pred_pos_ext;
         pred_behav_struct.external.predbehavneg(iter,:)=behav_pred_neg_ext;
-        
+        pred_behav_struct.external.testbehav(iter,:)=behav_ex;
     end
 
 end
