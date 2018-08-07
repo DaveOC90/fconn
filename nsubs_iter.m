@@ -53,7 +53,10 @@ function [res_struct,pred_behav_struct]=nsubs_iter(ipmats,behav,numiters,thresh,
             [Rpos,Ppos]=corr(testbehav,behav_pred_pos');
             [Rneg,Pneg]=corr(testbehav,behav_pred_neg');
             
-            res_struct.(['train' num2str(trainsubs)])(iter,:)=[Rpos Rneg Ppos Pneg];
+            mse_pos=mean((testbehav-behav_pred_pos').^2);
+            mse_neg=mean((testbehav-behav_pred_neg').^2);
+            
+            res_struct.(['train' num2str(trainsubs)])(iter,:)=[Rpos Rneg Ppos Pneg mse_pos mse_neg];
             
             
             pred_behav_struct.(['train' num2str(trainsubs)]).predbehavpos(iter,:)=behav_pred_pos;
