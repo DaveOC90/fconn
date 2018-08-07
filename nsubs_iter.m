@@ -1,4 +1,4 @@
-function [res_struct,pred_behav_struct]=nsubs_iter(ipmats,behav,numiters,thresh)
+function [res_struct,pred_behav_struct]=nsubs_iter(ipmats,behav,numiters,thresh,normalize)
 
     res_struct=struct();
 
@@ -12,9 +12,19 @@ function [res_struct,pred_behav_struct]=nsubs_iter(ipmats,behav,numiters,thresh)
         testinds=randinds(1:400);
         testmats=ipmats(:,testinds);
         testbehav=behav(testinds);
-        
+
         remaining_rand=randinds(401:end);
         
+        if normalize
+            testbehav_mean=mean(testbehav);
+            testbehav_var=var(testbehav);
+            testbehav=(testbehav-testbehav_mean)/testbehav_var;
+            pred_behav_struct.testbehavmean(iter)=testbehav_mean;
+            pred_behav_struct.testbehavvar(iter)=testbehav_var;
+        end
+        
+        pred_behav_struct.testbehav(iter,:)=testbehav;
+
         
         for trainsubs = 25:25:400
             fprintf('\n Training on %6.0f Subs \n',trainsubs);
@@ -22,6 +32,15 @@ function [res_struct,pred_behav_struct]=nsubs_iter(ipmats,behav,numiters,thresh)
             traininds=remaining_rand(1:trainsubs);
             trainmats=ipmats(:,traininds);
             trainbehav=behav(traininds);
+            
+            if normalize
+                trainbehav_mean=mean(trainbehav);
+                trainbehav_var=var(trainbehav);
+                trainbehav=(trainbehav-trainbehav_mean)/trainbehav_var;
+                pred_behav_struct.(['train' num2str(trainsubs)]).trainbehavmean(iter)=trainbehav_mean;
+                pred_behav_struct.(['train' num2str(trainsubs)]).trainbehavvar(iter)=trainbehav_var;
+            end
+            
             
             [fit_pos,fit_neg,pos_mask,neg_mask] = train_cpm(trainmats, trainbehav,thresh);
 
@@ -39,7 +58,6 @@ function [res_struct,pred_behav_struct]=nsubs_iter(ipmats,behav,numiters,thresh)
             
             pred_behav_struct.(['train' num2str(trainsubs)]).predbehavpos(iter,:)=behav_pred_pos;
             pred_behav_struct.(['train' num2str(trainsubs)]).predbehavneg(iter,:)=behav_pred_neg;
-            pred_behav_struct.(['train' num2str(trainsubs)]).testbehav(iter,:)=testbehav;
             
         end    
         
