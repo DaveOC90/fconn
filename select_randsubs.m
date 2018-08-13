@@ -1,4 +1,4 @@
-function [res_struct,behav_struct]=select_randsubs(ipmats, behav, numsubs, numiters, thresh, ipmats_ex, behav_ex, normalize)
+function [res_struct,behav_struct]=select_randsubs(ipmats, behav, numsubs, numiters, thresh, ipmats_ex,external_compare,behav_ex, normalize)
 
     res_struct=struct();
 
@@ -26,8 +26,9 @@ function [res_struct,behav_struct]=select_randsubs(ipmats, behav, numsubs, numit
             res_struct.behav_mean(iter)=behav_mean;
             res_struct.behav_var(iter)=behav_var;
             
-            behav_ex=(behav_ex-mean(behav_ex))/var(behav_ex);
-            
+            if external_compare
+                behav_ex=(behav_ex-mean(behav_ex))/var(behav_ex);
+            end        
         end
 
         % LOOCV
@@ -51,40 +52,42 @@ function [res_struct,behav_struct]=select_randsubs(ipmats, behav, numsubs, numit
             behav_struct.k10.testbehav(iter,:), behav_struct.k10.predbehavpos(iter,:), behav_struct.k10.predbehavneg(iter,:)] ...
              = cpm_cv(randipmats, randbehav, 10, thresh, behav_popvar);
         
-        %# External Val
-        [fit_pos,fit_neg, pos_mask, neg_mask] = train_cpm(randipmats,randbehav,thresh);
-        
-        
-        nsubs_ex=size(ipmats_ex,2);
-        
-        % Sum external edges
-        ext_sumpos = sum(ipmats_ex.*repmat(pos_mask,1,nsubs_ex))/2;
-        ext_sumneg = sum(ipmats_ex.*repmat(neg_mask,1,nsubs_ex))/2;
+        if external_compare
+            %# External Val
+            [fit_pos,fit_neg, pos_mask, neg_mask] = train_cpm(randipmats,randbehav,thresh);
 
-        % Derive predicted values for external dataset
-        behav_pred_pos_ext = fit_pos(1)*ext_sumpos + fit_pos(2);
-        behav_pred_neg_ext = fit_neg(1)*ext_sumneg + fit_neg(2);
-        
-        % Correlated predicted and real values in external datset
-        [Rpos_ext,Ppos_ext]=corr(behav_ex,behav_pred_pos_ext');
-        [Rneg_ext,Pneg_ext]=corr(behav_ex,behav_pred_neg_ext');
-        
-        % Estimate correlation based on MSE
-        behav_popvar_ext=mean((behav_ex-mean(behav_ex)).^2);
-        
-        mse_pos=mean((behav_ex-behav_pred_pos_ext').^2);
-        mse_neg=mean((behav_ex-behav_pred_neg_ext').^2);
-    
-        Rmsepos=sqrt(1-mse_pos/behav_popvar_ext);
-        Rmseneg=sqrt(1-mse_neg/behav_popvar_ext);
-        
-        % Record external correlation values
-        res_struct.external(iter,:) = [Rpos_ext, Rneg_ext, Ppos_ext, Pneg_ext, Rmsepos, Rmseneg];
-        
-        % Record test and predicted behaviour from external dataset testing
-        behav_struct.external.predbehavpos(iter,:)=behav_pred_pos_ext;
-        behav_struct.external.predbehavneg(iter,:)=behav_pred_neg_ext;
-        behav_struct.external.testbehav(iter,:)=behav_ex;
+
+            nsubs_ex=size(ipmats_ex,2);
+
+            % Sum external edges
+            ext_sumpos = sum(ipmats_ex.*repmat(pos_mask,1,nsubs_ex))/2;
+            ext_sumneg = sum(ipmats_ex.*repmat(neg_mask,1,nsubs_ex))/2;
+
+            % Derive predicted values for external dataset
+            behav_pred_pos_ext = fit_pos(1)*ext_sumpos + fit_pos(2);
+            behav_pred_neg_ext = fit_neg(1)*ext_sumneg + fit_neg(2);
+
+            % Correlated predicted and real values in external datset
+            [Rpos_ext,Ppos_ext]=corr(behav_ex,behav_pred_pos_ext');
+            [Rneg_ext,Pneg_ext]=corr(behav_ex,behav_pred_neg_ext');
+
+            % Estimate correlation based on MSE
+            behav_popvar_ext=mean((behav_ex-mean(behav_ex)).^2);
+
+            mse_pos=mean((behav_ex-behav_pred_pos_ext').^2);
+            mse_neg=mean((behav_ex-behav_pred_neg_ext').^2);
+
+            Rmsepos=sqrt(1-mse_pos/behav_popvar_ext);
+            Rmseneg=sqrt(1-mse_neg/behav_popvar_ext);
+
+            % Record external correlation values
+            res_struct.external(iter,:) = [Rpos_ext, Rneg_ext, Ppos_ext, Pneg_ext, Rmsepos, Rmseneg];
+
+            % Record test and predicted behaviour from external dataset testing
+            behav_struct.external.predbehavpos(iter,:)=behav_pred_pos_ext;
+            behav_struct.external.predbehavneg(iter,:)=behav_pred_neg_ext;
+            behav_struct.external.testbehav(iter,:)=behav_ex;
+
+        end
     end
-
 end
