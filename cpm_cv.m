@@ -1,6 +1,7 @@
-function [Rpos,Rneg,Ppos,Pneg,Rmsepos,Rmseneg,test_behav_gather,behav_pred_pos,behav_pred_neg] = cpm_cv(ipmats, behav, kfolds, thresh, popvar)
+function [Rpos,Rneg,Ppos,Pneg,Rmsepos,Rmseneg,test_behav_gather,behav_pred_pos,behav_pred_neg,pos_mask_gather,neg_mask_gather] = cpm_cv(ipmats, behav, kfolds, thresh, popvar)
     
     nsubs=size(ipmats,2);
+    nfeats=size(ipmats,1);
     randinds=randperm(nsubs);
     ksample=floor(nsubs/kfolds);
    
@@ -8,6 +9,9 @@ function [Rpos,Rneg,Ppos,Pneg,Rmsepos,Rmseneg,test_behav_gather,behav_pred_pos,b
     behav_pred_pos=zeros(kfolds,ksample);
     behav_pred_neg=zeros(kfolds,ksample);
     test_behav_gather=zeros(kfolds,ksample);
+    
+    pos_mask_gather=zeros(kfolds,nfeats);
+    neg_mask_gather=zeros(kfolds,nfeats);
     
     for leftout = 1:kfolds
         fprintf('\n Performing fold # %6.0f of %6.0f \n',leftout,kfolds);
@@ -42,6 +46,10 @@ function [Rpos,Rneg,Ppos,Pneg,Rmsepos,Rmseneg,test_behav_gather,behav_pred_pos,b
 
         behav_pred_pos(leftout,:) = fit_pos(1)*test_sumpos + fit_pos(2);
         behav_pred_neg(leftout,:) = fit_neg(1)*test_sumneg + fit_neg(2);
+        
+        pos_mask_gather(leftout,:)=pos_mask;
+        neg_mask_gather(leftout,:)=neg_mask;
+        
         
         toc
     end

@@ -1,5 +1,12 @@
 function [fit_pos,fit_neg, pos_mask, neg_mask] = train_cpm(train_vcts,train_behav,thresh)
 
+    % Accepts train_vcts, the feature vector for each subject, in a matrix
+    % of size numfeats x nsubs
+    % train_behav, behaviorual trait of interest for each subject of size
+    % nsubs x 1
+    % thresh, the p value to use to threshold correlations
+
+
     no_sub = size(train_vcts,2);
     no_node = sqrt(size(train_vcts,1));
 
