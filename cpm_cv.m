@@ -1,4 +1,4 @@
-function [Rpos,Rneg,Ppos,Pneg,Rmsepos,Rmseneg,test_behav_gather,behav_pred_pos,behav_pred_neg,pos_mask_gather,neg_mask_gather] = cpm_cv(ipmats, behav, kfolds, thresh, popvar)
+function [Rpos,Rneg,Ppos,Pneg,Rmsepos,Rmseneg,test_behav_gather,behav_pred_pos,behav_pred_neg,pos_mask_gather,neg_mask_gather] = cpm_cv(ipmats, behav, kfolds, thresh, popvar,write_feats, featspath)
     
     nsubs=size(ipmats,2);
     nfeats=size(ipmats,1);
@@ -66,5 +66,14 @@ function [Rpos,Rneg,Ppos,Pneg,Rmsepos,Rmseneg,test_behav_gather,behav_pred_pos,b
     
     Rmsepos=sqrt(1-mse_pos/popvar);
     Rmseneg=sqrt(1-mse_neg/popvar);
+    
+    if write_feats
+       pos_table=table(pos_mask_gather);
+       neg_table=table(neg_mask_gather);
+       
+       writetable(pos_table,[featspath '_posfeats.csv'])
+       writetable(neg_table,[featspath '_negfeats.csv'])
+       
+    end
     
 end
