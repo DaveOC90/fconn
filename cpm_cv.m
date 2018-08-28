@@ -68,12 +68,8 @@ function [Rpos,Rneg,Ppos,Pneg,Rmsepos,Rmseneg,test_behav_gather,behav_pred_pos,b
     Rmseneg=sqrt(1-mse_neg/popvar);
     
     if write_feats
-       pos_table=table(pos_mask_gather);
-       neg_table=table(neg_mask_gather);
-       
-       writetable(pos_table,[featspath '_posfeats.csv'])
-       writetable(neg_table,[featspath '_negfeats.csv'])
-       
+       save([featspath '_posfeats.mat'], 'pos_mask_gather')
+       save([featspath '_negfeats.mat'], 'neg_mask_gather')
     end
     
 end
