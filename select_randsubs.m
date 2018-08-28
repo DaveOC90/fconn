@@ -18,8 +18,8 @@ function [res_struct,behav_struct]=select_randsubs(ipmats, behav, numsubs, numit
     addParameter(p, 'ipmats_ex', @(x)validateattributes(x,{'numeric'},{'nonempty'}))
     addParameter(p, 'behav_ex', @(x)validateattributes(x,{'numeric'},{'nonempty'}))
     addParameter(p, 'normalize', false, @islogical)
-    addParameter(p, 'write_feats', false, @islogical)
-    addParameter(p, 'featdir', '', @(x)validateattributes(x,{'char'},{'nonempty'}))
+    addParameter(p, 'write_feats', false, @(x) islogical(x))
+    addParameter(p, 'featdir', 'na', @(x)validateattributes(x,{'char'},{'nonempty'}))
     
     parse(p,ipmats, behav, numsubs, numiters, thresh, varargin{:});
     
@@ -58,7 +58,7 @@ function [res_struct,behav_struct]=select_randsubs(ipmats, behav, numsubs, numit
             res_struct.behav_mean(iter)=behav_mean;
             res_struct.behav_var(iter)=behav_var;
             
-            if p.Results.external_compare
+            if p.Results.ExternalCompare
                 behav_ex=(behav_ex-mean(behav_ex))/var(behav_ex);
             end        
         end
@@ -67,15 +67,17 @@ function [res_struct,behav_struct]=select_randsubs(ipmats, behav, numsubs, numit
         for fold_num = cv_folds
              % LOOCV
             if p.Results.write_feats
-                featpath=[featdir 'cpmfeats_iter_' num2str(iter) '_nfolds_' num2str(cv_folds)];
+                featpath=[p.Results.featdir 'cpmfeats_iter_' num2str(iter) '_nfolds_' num2str(cv_folds)];
             else
                 featpath='';
             end
             
-            [res_struct.(['folds_' fold_num])(iter,1),res_struct.(['folds_' fold_num])(iter,2),res_struct.(['folds_' fold_num])(iter,3), ...
-                res_struct.(['folds_' fold_num])(iter,4),res_struct.(['folds_' fold_num])(iter,5),res_struct.(['folds_' fold_num])(iter,6), ...
-                behav_struct.(['folds_' fold_num]).testbehav(iter,:), behav_struct.(['folds_' fold_num]).predbehavpos(iter,:), ...
-                behav_struct.(['folds_' fold_num]).predbehavneg(iter,:)] ...
+            foldstr=num2str(fold_num);
+            
+            [res_struct.(['folds_' foldstr])(iter,1),res_struct.(['folds_' foldstr])(iter,2),res_struct.(['folds_' foldstr])(iter,3), ...
+                res_struct.(['folds_' foldstr])(iter,4),res_struct.(['folds_' foldstr])(iter,5),res_struct.(['folds_' foldstr])(iter,6), ...
+                behav_struct.(['folds_' foldstr]).testbehav(iter,:), behav_struct.(['folds_' foldstr]).predbehavpos(iter,:), ...
+                behav_struct.(['folds_' foldstr]).predbehavneg(iter,:)] ...
                 = cpm_cv(randipmats, randbehav, fold_num, thresh, behav_popvar, p.Results.write_feats, featpath);
             
 %             % LOOCV
@@ -99,7 +101,7 @@ function [res_struct,behav_struct]=select_randsubs(ipmats, behav, numsubs, numit
 %                  = cpm_cv(randipmats, randbehav, 10, thresh, behav_popvar, p.Results.write_feats, featpath);
         
         end
-        if p.Results.external_compare
+        if p.Results.ExternalCompare
             %# External Val
             [fit_pos,fit_neg, pos_mask, neg_mask] = train_cpm(randipmats,randbehav,thresh);
 

@@ -11,6 +11,7 @@ function [fit_pos,fit_neg, pos_mask, neg_mask] = train_cpm(train_vcts,train_beha
     no_node = sqrt(size(train_vcts,1));
 
     % correlate all edges with behavior
+    
     [r_mat,p_mat] = corr(train_vcts',train_behav);
     
     r_mat = reshape(r_mat,no_node,no_node);
