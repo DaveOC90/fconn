@@ -61,7 +61,7 @@ function [Rpos,Rneg,Ppos,Pneg,Rmsepos,Rmseneg,test_behav_gather,behav_pred_pos,b
         reverseStr = repmat(sprintf('\b'), 1, length(msg)); 
     end
 
-    fprintf('\n')
+    fprintf(reverseStr);
     
     behav_pred_pos=reshape(behav_pred_pos,[],1);
     behav_pred_neg=reshape(behav_pred_neg,[],1);
