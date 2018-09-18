@@ -13,8 +13,10 @@ function [Rpos,Rneg,Ppos,Pneg,Rmsepos,Rmseneg,test_behav_gather,behav_pred_pos,b
     pos_mask_gather=zeros(kfolds,nfeats);
     neg_mask_gather=zeros(kfolds,nfeats);
     
+    reverseStr='';
+    timegather=zeros(kfolds,1);
     for leftout = 1:kfolds
-        fprintf('\n Performing fold # %6.0f of %6.0f \n',leftout,kfolds);
+        %fprintf('\n Performing fold # %6.0f of %6.0f \n',leftout,kfolds);
         tic
         if kfolds == nsubs
             testinds=randinds(leftout);
@@ -50,10 +52,17 @@ function [Rpos,Rneg,Ppos,Pneg,Rmsepos,Rmseneg,test_behav_gather,behav_pred_pos,b
         pos_mask_gather(leftout,:)=pos_mask;
         neg_mask_gather(leftout,:)=neg_mask;
         
-        
-        toc
+        % Display the progress
+        percentDone = 100 * leftout / kfolds;
+        timegather(leftout)=toc;
+        mean_tg=mean(timegather(timegather~=0));
+        msg = sprintf('%1d Folds, percent done: %3.1f Average time for one loop: %2.3f', kfolds, percentDone, mean_tg);
+        fprintf([reverseStr, msg]);
+        reverseStr = repmat(sprintf('\b'), 1, length(msg)); 
     end
 
+    fprintf('\n')
+    
     behav_pred_pos=reshape(behav_pred_pos,[],1);
     behav_pred_neg=reshape(behav_pred_neg,[],1);
     test_behav_gather=reshape(test_behav_gather,[],1);
