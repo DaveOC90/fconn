@@ -38,12 +38,16 @@ function [res_struct,behav_struct]=select_randsubs(ipmats, behav, numsubs, numit
     
     behav_popvar=mean((behav-mean(behav)).^2);
     
-    reverseStr='';
+
     for iter = 1:numiters
         
         msg = sprintf('Performing iter # %3d of %3d \n',iter,numiters);
-        fprintf([reverseStr msg]);
         reverseStr = repmat(sprintf('\b'), 1, length(msg));
+        if iter ~= numiters
+            fprintf([reverseStr msg]);
+        else
+            fprintf(msg);
+        end
         totalsubs=size(ipmats,2);
         randinds=randperm(totalsubs);
         randinds=randinds(1:numsubs);
