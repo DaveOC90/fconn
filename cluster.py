@@ -5,6 +5,7 @@ import os, sys
 import numpy as np
 import pandas as pd
 
+import matplotlib
 if (os.name == 'posix' and "DISPLAY" in os.environ) or (os.name == 'nt'):
     from mpl_toolkits.mplot3d import Axes3D
     from matplotlib import pyplot as plt
