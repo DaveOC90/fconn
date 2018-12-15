@@ -2,8 +2,8 @@ import numpy as np
 import scipy as sp
 from scipy import io 
 from scipy import signal as sg
-#from matplotlib import pyplot as plt
-#import seaborn as sns
+from matplotlib import pyplot as plt
+import seaborn as sns
 import sklearn as skl
 from sklearn import svm,cluster
 import pandas as pd
@@ -29,33 +29,59 @@ def cosine_similarity(timeseries):
 
     return cos_sim
 
+def harmonize_evecs(evec):
+    # % Make sure the largest component is negative
+    # % This step is important because the same eigenvector can
+    # % be returned either as V or its symmetric -V and we need
+    # % to make sure it is always the same (so we choose always
+    # % the most negative one)
+    if np.mean(evec>0)>.5:
+        evec=-evec;
+    elif np.mean(evec>0)==.5 and np.sum(evec[evec>0])>-np.sum(evec[evec<0]):
+        evec=-evec;
+
+    return evec
+
 
 def calc_eigs(matrices,numevals="All"):
     """
     Takes NxMxM matrix and returns eigenvalues and eigenvectors
     """
     
-    nvols,nrois,_=matrices.shape
-
+    if len(matrices.shape) == 3:
+        nvols,nrois,_=matrices.shape
+    elif len(matrices.shape) == 2:
+        #print('2D, Assuming this is an ROIxROI matrix')
+        nrois,_=matrices.shape
+        nvols=1
+    else:
+        raise(Exception("Not sure about this matrix shape"))
 
     evals=np.zeros([nvols,nrois])
     evecs=np.zeros([nvols,nrois,nrois])
     evars=np.zeros([nvols,nrois])
 
     for volnum in range(0,nvols):
+        #print(volnum)
 
-        eigs=sp.linalg.eigh(matrices[volnum,:,:])
+        if len(matrices.shape) == 3:
+            eigs=sp.linalg.eigh(matrices[volnum,:,:])
+        else:
+            eigs=sp.linalg.eigh(matrices)
+
 
         tevals=eigs[0]
         tevecs=eigs[1]
+
+        tevecs=np.array([harmonize_evecs(tevecs[:,i]) for i in range(0,tevecs.shape[1])]).T
 
         evsort=np.argsort(tevals)
         tevals=tevals[evsort[::-1]]
         evals[volnum,:]=tevals
         evecs[volnum,:,:]=tevecs[:,evsort[-1::]]
         evars[volnum,:]=np.array([tevals[i]/np.sum(tevals,axis=None) for i in range(0,tevals.shape[0])])
- 
-        
+
+
 
         #evecs=np.array([evecs[i,:,evsort[i,:]] for i in range(0,len(evsort))])
         #evars=np.array([evals[i,:]/np.sum(evals[i,:],axis=None) for i in range(0,evals.shape[0])])
