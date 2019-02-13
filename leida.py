@@ -285,10 +285,6 @@ def svr_():
     pmatdf_filt=pmatdf.dropna()
     pmatvals=pmatdf_filt.PMAT24_A_CR.values
 
-
-
-
-
     features=np.array([np.histogram(ims,bins=11)[0] for ims in imnets.T])
 
     svr=svm.SVR()

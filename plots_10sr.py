@@ -5,10 +5,97 @@ import numpy as np
 from scipy import io
 from matplotlib.colors import ListedColormap
 from sklearn import linear_model
+import scipy as sp
 
 data_dir='C:/Users/david/Documents/Research/10simplerules_data_figs/data'
 fig_dir='C:/Users/david/Documents/Research/10simplerules_data_figs/figs'
 
+#data_dir='/mnt/c/Users/david/Documents/Research/10simplerules_data_figs/data'
+# fig_dir='/mnt/c/Users/david/Documents/Research/10simplerules_data_figs/figs'
+
+
+#### Funcs to use ####
+
+def bias_plot():
+    """
+    Bias plot for 10 simple rules figure
+    """
+
+    biasstuff=io.loadmat(data_dir+'/cv_compare_tot_norm.mat',mat_dtype=True)
+    bias_data=biasstuff['rsn_tot'][0]
+    #cvtypes=['k2','k5','k10','loo','external']
+    #cvtypes_plots=['Split Half', '5 Fold', '10 Fold', 'LOO', 'External']
+
+    cvtypes=['k2','k5','k10','loo']
+    cvtypes_plots=['Split-half', '5-fold', '10-fold', 'LOO']
+
+
+    Rpos=np.concatenate([bias_data[0][cvt][:,0] for cvt in cvtypes])
+    Rmse=np.concatenate([bias_data[0][cvt][:,4] for cvt in cvtypes])
+    labels=np.concatenate([np.repeat(cv,200) for cv in cvtypes_plots])
+
+    dfarr=np.concatenate([np.vstack(labels).T,np.vstack(Rpos).T,np.vstack(Rmse).T]).T
+
+    #n1="R Squared (Pearsons)"
+    #n2="R Squared (MSE)"
+    n1="MSE(observed,yhat)"
+    n2="MSE(observed,pred)"
+
+    ipdata=pd.DataFrame(dfarr,columns=['Labels',n1,n2])
+
+    ipdata[n1]=ipdata[n1].astype('float')
+    ipdata[n2]=ipdata[n2].astype('float')
+
+    ipdata[n1]=ipdata[n1]**2
+    ipdata[n2]=ipdata[n2]
+
+    ipdata['X']=np.concatenate([np.linspace(0,0.3,200) for n in range(0,len(cvtypes_plots))])
+    ipdata['Y']=np.concatenate([np.linspace(0,0.3,200) for n in range(0,len(cvtypes_plots))])
+
+
+    g=sns.FacetGrid(ipdata,col="Labels",col_wrap=2,hue="Labels",palette='vlag',despine=True)
+    axes = g.axes.flatten()
+    axes[0].set_title(r"$Split-half$")
+    axes[1].set_title(r"$5-fold$")
+    axes[2].set_title(r"$10-fold$")
+    axes[3].set_title(r"$LOO$")
+    g=g.map(plt.plot,"X","Y")
+    #g=g.map(plt.scatter,n1,n2).set_axis_labels(r'$MSE(observed,\hat y)$', r'$MSE(observed,pred)$')
+    g=g.map(plt.scatter,n1,n2).set_axis_labels(r'$R^2(explanatory)$', r'$R^2(prediction)$')
+
+
+    axes[0].set_title("Split-half")
+    axes[1].set_title("5-fold")
+    axes[2].set_title("10-fold")
+    axes[3].set_title("LOO")
+
+    #plt.show()
+
+    print(fig_dir+'/biasfig.tiff')
+    plt.savefig(fig_dir+'/biasfig.tiff', dpi=300, facecolor='w', edgecolor='w',
+         orientation='portrait', papertype=None, format=None,
+         transparent=False, bbox_inches=None, pad_inches=0.1,
+         frameon=None)   
+
+#    sns.lmplot(x="PearsonsR", y="mseR",col="Labels", hue="Labels", data=ipdata,col_wrap=3,ci=None,fit_reg=True)
+#    plt.show()
+
+    
+
+
+    # for i,cv in enumerate(ipdata.Labels.unique()):
+    #     g=plt.subplot(2,3,i+1)
+    #     print(cv)
+    #     subdf=ipdata[ipdata.Labels == cv]
+    #     regr = linear_model.LinearRegression()
+    #     regr.fit(np.vstack(subdf.PearsonsR.values), subdf.mseR.values)
+    #     #print(' '.join([cv,str(regr.coef_[0]),str(regr.intercept_)]))
+    #     g=sns.FacetGrid(subdf)
+    #     g=g.map(plt.scatter,"PearsonsR","mseR")
+    #     plt.plot([0,0.55],[0,0.55],color='k')
+    # plt.show()
+
+    
 
 def nsubs_plot():
     # Ntrainsubs plot
@@ -26,19 +113,24 @@ def nsubs_plot():
     
 
     cllct=[]
+    cllctR=[]
     for cvt in train_lbls:
     
         mse=np.mean(np.array(pred_data_dict[cvt]-real_data_dict[cvt])**2,axis=1)
+        Rcorr=list(map(lambda x,y: sp.stats.pearsonr(x,y)[0],pred_data_dict[cvt],real_data_dict[cvt]))
         cllct.append(mse)
-
+        cllctR.append(Rcorr)
+        
     mse_tot=np.array(cllct)
-    
+    Rcorr_tot=np.array(cllctR)
+
     ipdata=pd.DataFrame(mse_tot.T,columns=col_lbls)
+    
 
-
-    #rposdf=pd.DataFrame(rpos,columns=col_lbls)
+    rposdf=pd.DataFrame(Rcorr_tot.T,columns=col_lbls)
     
     train_subs_plot(ipdata, fig_dir+'/nsubs_mse.tiff')
+    #train_subs_plot(rposdf, fig_dir+'/nsubs_rcorr.tiff')
 
 
 def sametrain_run():
@@ -107,6 +199,7 @@ def mseplot():
         cllct.append(mse)
 
     mse_tot=np.array(cllct)
+    #print(mse_tot.shape)
     
     ipdata=pd.DataFrame(mse_tot.T,columns=cvtypes_plots)
 
@@ -115,16 +208,17 @@ def mseplot():
     cv_effect_plot(ipdata,fig_dir+'/normcvMSE.tiff')
     #cv_effect_plot_sepscales(ipdata,'../normcvMSE_splitscale.jpg')
 
-def cv_effect_plot(ipdata,opname,title):
+def cv_effect_plot(ipdata,opname):
     plt.clf()
     sns.set(style='ticks')
+    plt.figure(figsize=(8, 6))
     #sns.boxplot(data=ipdata[['Split Half', '5 Fold', '10 Fold', 'LOO']],palette='vlag')
     sns.boxplot(data=ipdata,palette='vlag')
-    plt.ylim([0,0.5])
+    
     #sns.violinplot(data=rposdf,palette='vlag',inner='quartile')
     sns.despine(offset=10, trim=True)
-    plt.title(title,fontsize='large')
-    plt.ylabel('R',weight='bold')
+    plt.title('Variable train size',fontsize='large')
+    plt.ylabel('Normalized MSE',weight='bold')
     plt.xlabel('Cross-validation method',weight='bold')
     plt.tight_layout()
     #plt.savefig('./cv_pred_200.jpg', dpi=None, facecolor='w', edgecolor='w',
@@ -141,11 +235,13 @@ def cv_effect_plot(ipdata,opname,title):
 def train_subs_plot(ipdata,opname):
     plt.clf()
     sns.set(style='ticks')
+    plt.figure(figsize=(8, 6))
     sns.boxplot(data=ipdata,palette='vlag')
     #sns.violinplot(data=rposdf,palette='vlag',inner='quartile')
-    sns.despine(offset=10, trim=True)
+    sns.despine(offset=20, trim=True)
     plt.title('Effect of number of training individuals on prediction',fontsize='large')
-    plt.ylabel('MSE',weight='bold')
+    plt.ylabel('Normalized MSE',weight='bold')
+    #plt.ylabel('Pearsons R',weight='bold')
     plt.xlabel('Number of training individuals',weight='bold')
     plt.tight_layout()
     plt.savefig(opname, dpi=300, facecolor='w', edgecolor='w',
@@ -157,11 +253,12 @@ def train_subs_plot(ipdata,opname):
 def const_trainsize_plot(ipdata,opname):
     plt.clf()
     sns.set(style='ticks')
+    plt.figure(figsize=(8, 6))
     sns.boxplot(data=ipdata,palette='vlag')
     #sns.violinplot(data=rposdf,palette='vlag',inner='quartile')
     sns.despine(offset=10, trim=True)
     plt.title('Constant train size (n=180)',fontsize='large')
-    plt.ylabel('MSE',weight='bold')
+    plt.ylabel('Normalized MSE',weight='bold')
     plt.xlabel('Cross-validation method',weight='bold')
     plt.tight_layout()
     plt.savefig(opname, dpi=300, facecolor='w', edgecolor='w',
@@ -208,15 +305,18 @@ def prior_dataproc():
 
 
 
-def quickcorrplot(ip_fpath,op_plot_name,title):
+def quickcorrplot():
     # Initial CV comparison plot
+    #cvdata=io.loadmat('../norm_cvcomparison_cuda.mat')
+    #cvdata=cvdata['res_struct_norm']
+    #cvdata_extra=io.loadmat('../norm_cvcomparison_shred.mat')
+    #cvdata_extra=cvdata_extra['res_struct_norm']
     
-    cvdata=io.loadmat(ip_fpath)
+    cvdata=io.loadmat(data_dir+'/LEresstruct.mat')
     cvdata=cvdata['res_struct']
 
     #cvtypes=['k2','k5','k10','loo','external']
-    #cvtypes=['k2','k5','k10','loo']
-    cvtypes=['folds_2','folds_5','folds_10','folds_500']
+    cvtypes=['k2','k5','k10','loo']
     
     #cvtypes_plots=['Split Half', '5 Fold', '10 Fold', 'LOO', 'External']
     cvtypes_plots=['Split-half', '5-fold', '10-fold', 'LOO']
@@ -226,76 +326,7 @@ def quickcorrplot(ip_fpath,op_plot_name,title):
     #rposdf=pd.DataFrame(np.concatenate([rpos,rpos_extra]),columns=cvtypes_plots)
     rposdf=pd.DataFrame(rpos,columns=cvtypes_plots)
 
-    cv_effect_plot(rposdf,op_plot_name,title)
-
-def quickcorrplot(ip_fpath,op_plot_name,title):
-    # Initial CV comparison plot
-    
-    cvdata=io.loadmat(ip_fpath)
-    cvdata=cvdata['res_struct']
-
-    #cvtypes=['k2','k5','k10','loo','external']
-    #cvtypes=['k2','k5','k10','loo']
-    cvtypes=['folds_2','folds_5','folds_10','folds_500']
-    
-    #cvtypes_plots=['Split Half', '5 Fold', '10 Fold', 'LOO', 'External']
-    cvtypes_plots=['Split-half', '5-fold', '10-fold', 'LOO']
-    
-    rpos=np.array([cvdata[0][cvt][0][:,0] for cvt in cvtypes]).T
-    #rpos_extra=np.array([cvdata_extra[0][cvt][0][:,0] for cvt in cvtypes]).T
-    #rposdf=pd.DataFrame(np.concatenate([rpos,rpos_extra]),columns=cvtypes_plots)
-    rposdf=pd.DataFrame(rpos,columns=cvtypes_plots)
-
-    cv_effect_plot(rposdf,op_plot_name,title)
-    
-
-def multiboxplot():
-    mats=glob.glob('../LEiDA/data/gsrcomp/*')
-    nums={m.split('\\')[-1]:io.loadmat(m)['res_struct'] for m in mats}
-
-    cvtypes1=['k2','k5','k10','loo']
-    cvtypes2=['folds_2','folds_5','folds_10','folds_500']
-    cvtypes_plots=['Split-half', '5-fold', '10-fold', 'LOO']
-
-    dflist=[]
-    for nk in nums.keys():
-        try:
-            rpos=np.array([nums[nk][0][cvt][0][:,0] for cvt in cvtypes1]).T
-        except ValueError:
-            rpos=np.array([nums[nk][0][cvt][0][:,0] for cvt in cvtypes2]).T
-
-        if 'scfisher' in nk:
-            mattype='scfisher'
-        elif '_le2' in nk:
-            mattype='LE2'
-        elif '_le' in nk:
-            mattype='LE'
-
-        
-        if 'gsr' in nk:
-            gsr='gsr'
-        else:
-            gsr='nogsr'
-
-        if 'rest' in nk:
-            state='rest'
-        elif 'wm' in nk:
-            state='wm'
-        else:
-            raise Exception('NOSTATEEEE')
-
-        if rpos.shape[0] > 50:
-            rpos=rpos[:50,:]
-
-        cvcats=[[l,gsr,mattype,state] for l in list(np.reshape([cvtypes2]*50,200,1))]
-        rpos=np.reshape(rpos,200)
-  
-        df=pd.DataFrame(cvcats,columns=['CV','GSR','MatType','State'])
-        df['RPos']=rpos
-
-        dflist.append(df)
-
-    alldata=pd.concat(dflist)
+    cv_effect_plot(rposdf,fig_dir+'/LEcvR.jpg')
 
 
 def cv_effect_plot_sepscales(ipdata,opname):

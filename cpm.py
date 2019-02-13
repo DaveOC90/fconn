@@ -4,7 +4,7 @@ import pandas as pd
 #from matplotlib import pyplot as plt
 #import seaborn as sns
 import glob
-from scipy import stats
+from scipy import stats,io
 import random
 
 
@@ -17,6 +17,19 @@ def read_mats(iplist):
     return ipmats
 
 
+def corr2_coeff(A,B):
+	# from: https://stackoverflow.com/questions/30143417/computing-the-correlation-coefficient-between-two-multi-dimensional-arrays/30143754#30143754
+    # https://stackoverflow.com/questions/45403071/optimized-computation-of-pairwise-correlations-in-python?noredirect=1&lq=1
+    # Rowwise mean of input arrays & subtract from input arrays themeselves
+    A_mA = A - A.mean(1)[:,None]
+    B_mB = B - B.mean(1)[:,None]
+
+    # Sum of squares across rows
+    ssA = (A_mA**2).sum(1);
+    ssB = (B_mB**2).sum(1);
+
+    # Finally get corr coeff
+    return np.dot(A_mA,B_mB.T)/np.sqrt(np.dot(ssA[:,None],ssB[None]))
 
 def train_cpm(ipmat,pheno):
 
@@ -25,7 +38,9 @@ def train_cpm(ipmat,pheno):
     Returns model
     """
 
-    cc=[stats.pearsonr(pheno,im) for im in ipmat]
+    cc=corr2_coeff(ipmat,pheno)
+
+    #cc=[stats.pearsonr(pheno,im) for im in ipmat]
 
 
 
@@ -56,26 +71,15 @@ def train_cpm(ipmat,pheno):
     return fit_pos,fit_neg,posedges,negedges
 
 
-def pairwise_corr(X,Y):
+def testcorr():
+    ipdata=io.loadmat('../../Fingerprinting/ipmats.mat')
+    ipmats=ipdata['ipmats']
+    pmatvals=ipdata['pmatvals'][0]
+    ipmats_res=np.reshape(ipmats,[-1,843])
+    pmats_rep=np.repeat(np.vstack(pmatvals),71824,axis=1)
+    cc=corr2_coeff(ipmats_res,pmats_rep.T)
 
-    #A=A.astype('float64')
-
-    n=X.shape[0]
-    
-    xbar=X.mean(1)
-    ybar=Y.mean(1)
-
-    xminusxbar=X-np.vstack(xbar)
-    yminusybar=Y-np.vstack(ybar)
-
-    xminusxbarsquare=xminusxbar**2
-    yminusybarsquare=yminusybar**2
-
-    numer=np.dot(xminusxbar.T,yminusybar)
-    denom=np.vstack(np.sqrt(xminusxbarsquare.sum(1))*np.sqrt(yminusybarsquare.sum(1)))
-
-    return numer/denom
-
+    return cc
 
 def run_validate(ipmats,pheno,cvtype):
 
