@@ -372,7 +372,7 @@ if __name__ == '__main__':
     if not os.path.isfile('rest_ts.npy'):
         ts_parcel_rest=loadmatv73_tree('../HCPDataStruct_GSR_REST_LR.mat')
         ts_parcel_rest=ts_parcel_rest['data_struct']['REST_LR']
-        np.save('rest_ts.npy',ts_parcel_wm)
+        np.save('rest_ts.npy',ts_parcel_rest)
     else:
         ts_parcel_wm=np.load('rest_ts.npy')
 
@@ -432,15 +432,17 @@ if __name__ == '__main__':
         subname=subs_combo[nsub]
 
         csv_opname=f'../phase_stuff/dimred_events_{subname}_pcatsne.csv'
+        fpath=glob.glob(f'HCP-WM-LR-EPrime/{subname}/{subname}_3T_WM_run*_TAB_filtered.csv')[0]
+
+        # Create one phase array per sub
+        wm_mang=np.vstack(np.squeeze(wm_mean_angles[nsub,:])).T
+        rest_mang=np.vstack(np.squeeze(rest_mean_angles[nsub,:])).T
+        wm_rest_concat=np.concatenate([wm_angles[nsub,:,:],wm_mang,rest_angles[nsub,:,:],rest_mang])
+
+
 
         if not os.path.isfile(csv_opname):
             print(f"processing {subname}")
-
-            # Create one phase array per sub
-            wm_mang=np.vstack(np.squeeze(wm_mean_angles[nsub,:])).T
-            rest_mang=np.vstack(np.squeeze(rest_mean_angles[nsub,:])).T
-            wm_rest_concat=np.concatenate([wm_angles[nsub,:,:],wm_mang,rest_angles[nsub,:,:],rest_mang])
-
 
             # Caculate PCA
             pca_comps=return_pca_comps(wm_rest_concat.T,n_components=3)
