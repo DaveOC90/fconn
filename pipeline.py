@@ -342,8 +342,7 @@ def generate_tsne_plots_multiple_measures():
             else:
                 pass
 
-
-if __name__ == '__main__':
+def phase_based_tsne():
     
     # Load GSR corrected working memory time series
     print("Generating static corr mats")
@@ -352,15 +351,15 @@ if __name__ == '__main__':
         ts_parcel_wm=ts_parcel_wm['data_struct']['WM_LR']
         np.save('wm_ts.npy',ts_parcel_wm)
     else:
-        ts_parcel_wm=np.load('wm_ts.npy')
+        ts_parcel_wm=np.load('wm_ts.npy').item()
     wmsubs=[k.replace('sub','') for k in ts_parcel_wm.keys()]
-    # ## create dictionary of static correlation matrices
-    # wm_sc_dct={k:np.corrcoef(ts_parcel_wm[k].T) for k in ts_parcel_wm.keys()}
-    # ## Record subject ids
-    # wmsubs=wm_sc_dct.keys()
-    # ## Create one matrix with data
-    # wm_sc=np.stack([wm_sc_dct[k] for k in wm_sc_dct.keys()],axis=2)
-    # wm_sc=np.transpose(wm_sc,[2,0,1])
+
+
+    ## create dictionary of static correlation matrices
+    wm_sc={k:np.corrcoef(ts_parcel_wm[k].T) for k in ts_parcel_wm.keys()}
+    ## Create one matrix with data
+    wm_sc=np.stack([wm_sc[k] for k in wm_sc.keys()],axis=2)
+    wm_sc=np.transpose(wm_sc,[2,0,1])
 
     # Calculate phase of ts    
     wm_angles=[np.angle(sg.hilbert(ts_parcel_wm[k],axis=0)) for k in ts_parcel_wm.keys()]
@@ -374,17 +373,25 @@ if __name__ == '__main__':
         ts_parcel_rest=ts_parcel_rest['data_struct']['REST_LR']
         np.save('rest_ts.npy',ts_parcel_rest)
     else:
-        ts_parcel_wm=np.load('rest_ts.npy')
+        ts_parcel_rest=np.load('rest_ts.npy').item()
 
     restsubs=[k.replace('sub','') for k in ts_parcel_rest.keys()]
-    # ## create dictionary of static correlation matrices
-    # rest_sc_dct={k:np.corrcoef(ts_parcel_rest[k].T) for k in ts_parcel_rest.keys()}
-    # ## Record subject ids
-    # restsubs=rest_sc_dct.keys()
-    # ## Create one matrix with data
-    # rest_sc=np.stack([rest_sc_dct[k] for k in rest_sc_dct.keys()],axis=2)
-    # rest_sc=np.transpose(rest_sc,[2,0,1])
     
+    ## create dictionary of static correlation matrices
+    rest_sc={k:np.corrcoef(ts_parcel_rest[k].T) for k in ts_parcel_rest.keys()}
+    ## Create one matrix with data
+    rest_sc=np.stack([rest_sc[k] for k in rest_sc.keys()],axis=2)
+    rest_sc=np.transpose(rest_sc,[2,0,1])
+
+
+    ## create dictionary of mean phase connectivity matrices
+    rest_phasecon={k:np.mean(cosine_similarity(ts_parcel_rest[k])) for k in ts_parcel_rest.keys()}
+    ## Create one matrix with data
+    #rest_sc=np.stack([rest_sc[k] for k in rest_sc.keys()],axis=2)
+    #rest_sc=np.transpose(rest_sc,[2,0,1])
+
+
+
     # Calculate phase of ts
     rest_angles=[np.angle(sg.hilbert(ts_parcel_rest[k],axis=0)) for k in ts_parcel_rest.keys()]
     rest_angles=np.stack(rest_angles)
@@ -408,12 +415,12 @@ if __name__ == '__main__':
     wm_mean_angles=wm_mean_angles[wm_mask,:]
     rest_angles=rest_angles[rest_mask,:,:]
     wm_angles=wm_angles[wm_mask,:,:]
-
+    rest_sc=rest_sc[rest_mask,:,:]
+    wm_sc=wm_sc[wm_mask,:,:]
     # Delete some stuff to reduce memory used
     del ts_parcel_rest
     del ts_parcel_wm
 
-    # Make sublist
 
     # Setup some lists to gather some stuff during processing
     data_gather=[]
@@ -424,7 +431,7 @@ if __name__ == '__main__':
     dynamic_measure = 'angles'
 
     # Iterate over subjects
-    for nsub in range(0,2):
+    for nsub in range(0,47):
 
 
 
@@ -432,7 +439,7 @@ if __name__ == '__main__':
         subname=subs_combo[nsub]
 
         csv_opname=f'../phase_stuff/dimred_events_{subname}_pcatsne.csv'
-        fpath=glob.glob(f'HCP-WM-LR-EPrime/{subname}/{subname}_3T_WM_run*_TAB_filtered.csv')[0]
+        fpath=glob.glob(f'../HCP-WM-LR-EPrime/{subname}/{subname}_3T_WM_run*_TAB_filtered.csv')[0]
 
         # Create one phase array per sub
         wm_mang=np.vstack(np.squeeze(wm_mean_angles[nsub,:])).T
@@ -508,3 +515,215 @@ if __name__ == '__main__':
         df_gather.append(dimred_event_df)
 
         data_withevs_gather.append(wm_rest_concat)
+
+
+    word_lbls=['wm_phase' for i in range(0,405)]+['wm_phase_mean'] \
+    +['rest_phase' for i in range(0,1200)]+['rest_phase_mean']
+
+
+    
+    # Aggregate all the DFs
+    bigdf=pd.concat(df_gather)
+    numsubs=len(df_gather)
+    #rest_wm_agg=np.concatenate(data_gather)
+    bigdf['subid']=bigdf.subid.astype('str')
+
+    # Aggregate all LEs with event data
+    rest_wm_agg_wevs=np.concatenate(data_withevs_gather)
+
+    # PCA of all
+    
+    pca_comps=return_pca_comps(rest_wm_agg_wevs.T,n_components=3)
+    big_pca_df=pd.DataFrame(pca_comps.T,columns=['x','y','z'])
+    x,y=big_pca_df.shape
+    big_pca_df['VolumeAssignment']=np.reshape(np.repeat(np.vstack(np.arange(1,1608)),numsubs,axis=1).T,[1607*numsubs,1])
+    big_pca_df['method']=np.repeat(f'pca_{numsubs}subs',x)
+    # Apply some labels to DF
+    big_pca_df['Type']=word_lbls*numsubs
+    big_pca_df['VolumeAssignment']=np.concatenate([np.arange(1,1608)]*numsubs)
+    big_pca_df['subid']=np.repeat(bigdf.subid.unique(),1607)
+
+
+
+
+    # Setup input to TSNE
+    #iplist=[{'data':rest_wm_agg_wevs,'perplexity':str(i)} for i in range(10,60,20)]
+
+    iplist=[{'data':rest_wm_agg_wevs,'perplexity':'30','initialization':pca_comps[:2,:].T}]
+
+
+    # TSNE path to save unique runs
+    tsne_dir=os.path.join('phase_stuff','tsne_runs',f'{numsubs}subs')
+    if not os.path.isdir(tsne_dir):
+        os.makedirs(tsne_dir)
+
+    # TSNE of All
+    #fast_tsne_LE_33=run_multiple_fast_tsne(iplist,write_res=True,write_dir=tsne_dir)
+    fast_tsne_group=run_multiple_fast_tsne(iplist,write_res=True,write_dir=tsne_dir)
+
+    num_tsne=len(fast_tsne_group)
+
+    # Create tsne DF
+    big_tsne_df_merged=pd.concat(fast_tsne_group)
+    big_tsne_df_merged=big_tsne_df_merged.reset_index().drop('level_1',axis=1)
+    big_tsne_df_merged=big_tsne_df_merged.rename({'level_0':'tsneargs'},axis=1)
+
+
+    x,y=big_tsne_df_merged.shape
+    # Apply some labels to DF
+    big_tsne_df_merged['VolumeAssignment']=np.reshape(np.repeat(np.vstack(np.arange(1,1608)),numsubs*num_tsne,axis=1).T,[1607*numsubs*num_tsne,1])
+    big_tsne_df_merged['method']=np.repeat(f'tsne_{numsubs}subs',x)
+    big_tsne_df_merged['Type']=word_lbls*numsubs*num_tsne
+    big_tsne_df_merged['VolumeAssignment']=np.concatenate([np.arange(1,1608)]*numsubs*num_tsne)
+    big_tsne_df_merged['subid']=np.concatenate([np.repeat(bigdf.subid.unique(),1607)]*num_tsne)
+
+
+    #print("Running HDBSCAN")
+    #clus_sol=run_hdbscan(data_subset.T)
+
+
+    subs=bigdf.subid.unique()
+    # Merge big event df with dim red dfs
+    fs=glob.glob('../HCP-WM-LR-EPrime/*/*.csv')
+    fs_filtered=[f for f in fs if any(str(x) in f for x in subs)]
+    dfs=[pd.read_csv(ff,index_col=0) for ff in fs_filtered]
+    big_ev_df=pd.concat(dfs)
+    big_ev_df['subid']=np.repeat(subs,176)
+
+
+    # Add Event data to dim red
+    pca_ev_df=pd.merge(big_pca_df,big_ev_df,on=['VolumeAssignment','subid'],how='outer')
+    tsne_ev_df=pd.merge(big_tsne_df_merged,big_ev_df,on=['VolumeAssignment','subid'],how='outer')
+
+
+    big_pca_tsne_evdf=pd.concat([pca_ev_df,bigdf,tsne_ev_df],sort=False)
+    big_pca_tsne_evdf['combo']=big_pca_tsne_evdf.method+'_'+big_pca_tsne_evdf.tsneargs.astype('str')
+    
+    
+    for sub in subs:
+        subdf=big_pca_tsne_evdf[big_pca_tsne_evdf.subid == sub]
+        cmap = sns.diverging_palette(220, 10, as_cmap=True)
+        pal=sns.color_palette(palette='RdBu')
+
+        #for hue in ['VolumeAssignment']:
+        for hue in ['Type','BlockType','ACC']:
+            print(hue)
+
+            plt_opname='../phase_stuff/subs_47_plots/'+sub+'_dimred_'+hue+'_withpcatsne.png'
+
+            if not os.path.isfile(plt_opname):
+
+                plt.clf()
+
+                sns.lmplot(data=subdf,x='x',y='y',col='combo',col_wrap=3, fit_reg=False,
+                    sharex=False,sharey=False,hue=hue,scatter_kws={'alpha':0.3},
+                    legend=False,palette=pal)
+                
+                plt.tight_layout()
+                mng = plt.get_current_fig_manager()
+                mng.resize(*mng.window.maxsize())
+                #plt.show()
+                plt.savefig(plt_opname)
+                plt.close()
+            else:
+                pass
+
+
+
+
+
+if __name__ == '__main__':
+
+
+
+    # Load GSR corrected working memory time series
+    print("Generating static corr mats")
+    if not os.path.isfile('wm_ts.npy'):
+        ts_parcel_wm=loadmatv73_tree('../HCPDataStruct_GSR_WM_LR.mat')
+        ts_parcel_wm=ts_parcel_wm['data_struct']['WM_LR']
+        np.save('wm_ts.npy',ts_parcel_wm)
+    else:
+        ts_parcel_wm=np.load('wm_ts.npy').item()
+    wmsubs=[k.replace('sub','') for k in ts_parcel_wm.keys()]
+
+
+    # Load GSR corrected resting state time series
+    if not os.path.isfile('rest_ts.npy'):
+        ts_parcel_rest=loadmatv73_tree('../HCPDataStruct_GSR_REST_LR.mat')
+        ts_parcel_rest=ts_parcel_rest['data_struct']['REST_LR']
+        np.save('rest_ts.npy',ts_parcel_rest)
+    else:
+        ts_parcel_rest=np.load('rest_ts.npy').item()
+
+    restsubs=[k.replace('sub','') for k in ts_parcel_rest.keys()]
+    
+     ## Create one matrix with datasets
+    #rest_sc=np.stack([rest_sc[k] for k in rest_sc.keys()],axis=2)
+    #rest_sc=np.transpose(rest_sc,[2,0,1])
+
+
+    # Event subs
+    # Find possible working memory spreadsheets
+    fpaths=glob.glob(f'../HCP-WM-LR-EPrime/*/*_3T_WM_run*_TAB_filtered.csv')
+    eventsubs=[f.split('/')[2] for f in fpaths]
+    
+    # Filter subs based on whats common to both modalities
+    subs_combo=list(sorted(set(restsubs).intersection(set(wmsubs)).intersection(set(eventsubs))))
+
+
+
+    wm_phasecon={k:np.mean(cosine_similarity(ts_parcel_wm['sub'+k]),axis=0) for k in subs_combo}
+    wm_phasecon=np.stack(wm_phasecon)
+
+
+
+    rest_phasecon={k:np.mean(cosine_similarity(ts_parcel_rest[k])) for k in ts_parcel_rest.keys()}
+    rest_phasecon=np.stack(rest_phasecon)
+
+
+    #rest_sc=np.transpose(rest_sc,[2,0,1])
+
+    # # Event subs
+    # # Find possible working memory spreadsheets
+    # fpaths=glob.glob(f'../HCP-WM-LR-EPrime/*/*_3T_WM_run*_TAB_filtered.csv')
+    # eventsubs=[f.split('/')[2] for f in fpaths]
+    
+    # # Filter subs based on whats common to both modalities
+    # subs_combo=list(sorted(set(restsubs).intersection(set(wmsubs)).intersection(set(eventsubs))))
+    
+    # ts_parcel_wm={k:ts_parcel_wm[k] for k in subs_combo[:50]}
+    # ts_parcel_rest={k:ts_parcel_rest[k] for k in subs_combo[:50]}
+
+
+
+    # # Iterate over subjects
+    # for nsub in range(0,1):
+    #     ts_wm=ts_parcel_wm[subs_combo[nsub]]
+    #     wm_static_corr=np.corrcoef(ts_wm.T).flatten()
+    #     wm_mean_phase_corr=np.mean(cosine_similarity(ts_wm),axis=0).flatten()
+    #     wm_var_phase_corr=np.var(cosine_similarity(ts_wm),axis=0).flatten()
+    #     wm_cv_phase_corr=wm_var_phase_corr/wm_mean_phase_corr
+
+    #     corrs=np.corrcoef([wm_static_corr,wm_mean_phase_corr,wm_var_phase_corr,wm_cv_phase_corr])
+        
+    #     print('WM:',corrs)
+
+
+
+    #     ts_rest=ts_parcel_rest[subs_combo[nsub]]
+    #     rest_static_corr=np.corrcoef(ts_rest.T).flatten()
+    #     rest_mean_phase_corr=np.mean(cosine_similarity(ts_rest),axis=0).flatten()
+    #     rest_var_phase_corr=np.var(cosine_similarity(ts_rest),axis=0).flatten()
+    #     rest_cv_phase_corr=rest_var_phase_corr/rest_mean_phase_corr
+
+    #     corrs=np.corrcoef([rest_static_corr,rest_mean_phase_corr,rest_var_phase_corr,rest_cv_phase_corr])
+        
+    #     print('Rest:',corrs)
+    
+
+    for j in range(0,484):
+        print('Iter......',j)
+
+        #wm_phasecon={k:cosine_similarity(np.vstack(ts_parcel_wm['sub'+k][j,:].T),k) for k in subs_combo}
+        wm_phasecon=cosine_similarity(np.vstack(ts_parcel_wm['sub'+subs_combo[j]]))
+        sp.io.savemat('/mnt/d/wm_indvphasecon_'+str(j).zfill(3)+'.mat',{'wm_pc_indv':wm_phasecon})
