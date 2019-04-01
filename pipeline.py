@@ -3,6 +3,7 @@ import time
 import os, sys
 import glob
 from functools import reduce
+import pickle
 
 import numpy as np
 import pandas as pd
@@ -30,6 +31,7 @@ import sklearn.datasets
 from sklearn.decomposition import PCA
 import statsmodels.formula.api as sm
 from scipy.spatial import ConvexHull
+import scipy as sp
 
 from cluster import *
 from data_reduction import *
@@ -545,7 +547,6 @@ def phase_based_tsne():
 
 
 
-
     # Setup input to TSNE
     #iplist=[{'data':rest_wm_agg_wevs,'perplexity':str(i)} for i in range(10,60,20)]
 
@@ -637,7 +638,7 @@ if __name__ == '__main__':
 
 
     # Load GSR corrected working memory time series
-    print("Generating static corr mats")
+    print("Loading data")
     if not os.path.isfile('wm_ts.npy'):
         ts_parcel_wm=loadmatv73_tree('../HCPDataStruct_GSR_WM_LR.mat')
         ts_parcel_wm=ts_parcel_wm['data_struct']['WM_LR']
@@ -672,13 +673,13 @@ if __name__ == '__main__':
 
 
 
-    wm_phasecon={k:np.mean(cosine_similarity(ts_parcel_wm['sub'+k]),axis=0) for k in subs_combo}
-    wm_phasecon=np.stack(wm_phasecon)
+    #wm_phasecon={k:np.mean(cosine_similarity(ts_parcel_wm['sub'+k]),axis=0) for k in subs_combo}
+    #wm_phasecon=np.stack(wm_phasecon)
 
 
 
-    rest_phasecon={k:np.mean(cosine_similarity(ts_parcel_rest[k])) for k in ts_parcel_rest.keys()}
-    rest_phasecon=np.stack(rest_phasecon)
+    #rest_phasecon={k:np.mean(cosine_similarity(ts_parcel_rest[k])) for k in ts_parcel_rest.keys()}
+    #rest_phasecon=np.stack(rest_phasecon)
 
 
     #rest_sc=np.transpose(rest_sc,[2,0,1])
@@ -719,11 +720,11 @@ if __name__ == '__main__':
     #     corrs=np.corrcoef([rest_static_corr,rest_mean_phase_corr,rest_var_phase_corr,rest_cv_phase_corr])
         
     #     print('Rest:',corrs)
-    
 
-    for j in range(0,484):
-        print('Iter......',j)
-
+    nsubs=400
+    for j in range(0,nsubs):
+        print('Sub......',j+1,'out of ',nsubs)
+        start=time.time()
         #wm_phasecon={k:cosine_similarity(np.vstack(ts_parcel_wm['sub'+k][j,:].T),k) for k in subs_combo}
         wm_phasecon=cosine_similarity(np.vstack(ts_parcel_wm['sub'+subs_combo[j]]))
-        sp.io.savemat('/mnt/d/wm_indvphasecon_'+str(j).zfill(3)+'.mat',{'wm_pc_indv':wm_phasecon})
+        #tp_append.append(np
