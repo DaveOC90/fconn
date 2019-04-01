@@ -727,4 +727,50 @@ if __name__ == '__main__':
         start=time.time()
         #wm_phasecon={k:cosine_similarity(np.vstack(ts_parcel_wm['sub'+k][j,:].T),k) for k in subs_combo}
         wm_phasecon=cosine_similarity(np.vstack(ts_parcel_wm['sub'+subs_combo[j]]))
-        #tp_append.append(np
+        #tp_append.append(np.mean(wm_phasecon[tp:tp+5,:,:],axis=0))
+
+        for tp in range(0,405):
+            opf_name='../indv_phase/wm_indvphasecon_tp_'+str(tp).zfill(3)+'_sub_'+str(j).zfill(3)+'.pkl'
+            tp_phasecon=np.expand_dims(wm_phasecon[tp,:,:],0)
+            pickle.dump(tp_phasecon,open(opf_name,'wb'))
+            #if not os.path.isfile(opf_name):
+                #sp.io.savemat(opf_name,{'wm_pc_indv':tp_phasecon})
+                #pickle.dump(tp_phasecon,open(opf_name,'wb'))
+            #else:
+                #loaded_pc=sp.io.loadmat(opf_name)['wm_pc_indv']
+                #loaded_pc=pickle.load(open(opf_name,'rb'))
+                #loaded_pc=np.append(loaded_pc,tp_phasecon,axis=0)
+                #pickle.dump(loaded_pc,open(opf_name,'wb'))
+                #sp.io.savemat(opf_name,{'wm_pc_indv':loaded_pc})
+        print("time taken this loop:",time.time()-start)
+
+
+    av_tp=30
+    for tp in range(0,405-av_tp+1):
+        start=time.time()
+        print('TP......',tp+1,'out of ',405)
+        tp_str=str(tp).zfill(3)
+        tp_fs=sorted(glob.glob('../indv_phase/*tp_'+tp_str+'*.pkl'))
+
+        tp_list=[]
+        for j,tpf in enumerate(tp_fs):
+
+            if av_tp == 1:
+                subid=tpf.split('_')[5]
+                loaded_pc=pickle.load(open(tpf,'rb'))
+                tp_list.append(loaded_pc)
+                os.remove(tpf)
+            else:
+                gather_mats=[pickle.load(open(tpf.replace('tp_'+tp_str,'tp_'+str(ntp).zfill(3)),'rb')) for ntp in range(tp,tp+av_tp)]
+                av_pc=np.mean(np.squeeze(np.stack(gather_mats)),axis=0)
+                tp_list.append(av_pc)
+                os.remove(tpf)
+  
+        tp_pc_all=np.squeeze(np.stack(tp_list))
+
+        opf_name='../indv_phase/wm_indvphasecon_tp_'+str(tp).zfill(3)+'_av'+str(av_tp)+'.mat'
+        print("One TP mats gathered:",time.time()-start) 
+        sp.io.savemat(opf_name,{'wm_pc_indv':tp_pc_all})
+        print("time taken this loop:",time.time()-start)
+
+    
