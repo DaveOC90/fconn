@@ -6,7 +6,9 @@ import pandas as pd
 import glob
 from scipy import stats,io
 import random
-
+import pyximport
+pyximport.install(setup_args={"include_dirs":np.get_include()},reload_support=True)
+import corr_multi
 
 def read_mats(iplist):
 
@@ -21,6 +23,7 @@ def corr2_coeff(A,B):
 	# from: https://stackoverflow.com/questions/30143417/computing-the-correlation-coefficient-between-two-multi-dimensional-arrays/30143754#30143754
     # https://stackoverflow.com/questions/45403071/optimized-computation-of-pairwise-correlations-in-python?noredirect=1&lq=1
     # Rowwise mean of input arrays & subtract from input arrays themeselves
+
     A_mA = A - A.mean(1)[:,None]
     B_mB = B - B.mean(1)[:,None]
 
@@ -31,26 +34,30 @@ def corr2_coeff(A,B):
     # Finally get corr coeff
     return np.dot(A_mA,B_mB.T)/np.sqrt(np.dot(ssA[:,None],ssB[None]))
 
-def train_cpm(ipmat,pheno):
+def train_cpm(ipmat,pheno,pthresh=0.01):
 
     """
     Accepts input matrices and pheno data
     Returns model
     """
 
-    cc=corr2_coeff(ipmat,pheno)
+    #cc=corr2_coeff(ipmat,pheno)
 
     #cc=[stats.pearsonr(pheno,im) for im in ipmat]
+    num_pheno=len(pheno)
+
+    Rvals=corr_multi.corr_multi_cy(pheno,ipmat)
+    tvals=Rvals/np.sqrt((1-Rvals**2)/(num_pheno-2))
+    pvals=stats.t.sf(tvals,num_pheno-1)*2
 
 
-
-    rmat=np.array([c[0] for c in cc])
-    pmat=np.array([c[1] for c in cc])
-    rmat=np.reshape(rmat,[268,268])
-    pmat=np.reshape(pmat,[268,268])
-    posedges=(rmat > 0) & (pmat < 0.01)
+    #rmat=np.array([c[0] for c in cc])
+    #pmat=np.array([c[1] for c in cc])
+    #rmat=np.reshape(Rvals,[268,268])
+    #pmat=np.reshape(pvals,[268,268])
+    posedges=(Rvals > 0) & (pvals < pthresh)
     posedges=posedges.astype(int)
-    negedges=(rmat < 0) & (pmat < 0.01)
+    negedges=(Rvals < 0) & (pvals < pthresh)
     negedges=negedges.astype(int)
     pe=ipmat[posedges.flatten().astype(bool),:]
     ne=ipmat[negedges.flatten().astype(bool),:]
