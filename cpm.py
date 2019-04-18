@@ -4,7 +4,7 @@ import pandas as pd
 #from matplotlib import pyplot as plt
 #import seaborn as sns
 import glob
-from scipy import stats,io
+from scipy import stats,io,special
 import random
 import pyximport
 pyximport.install(setup_args={"include_dirs":np.get_include()},reload_support=True)
@@ -43,18 +43,20 @@ def train_cpm(ipmat,pheno,pthresh=0.01):
 
     #cc=corr2_coeff(ipmat,pheno)
 
-    #cc=[stats.pearsonr(pheno,im) for im in ipmat]
+    
     num_pheno=len(pheno)
+    df=num_pheno-2
 
     Rvals=corr_multi.corr_multi_cy(pheno,ipmat.T)
-    tvals=Rvals/np.sqrt((1-Rvals**2)/(num_pheno-2))
-    pvals=stats.t.sf(tvals,num_pheno-1)*2
-
-
-    #rmat=np.array([c[0] for c in cc])
-    #pmat=np.array([c[1] for c in cc])
+    tvals=(Rvals*np.sqrt(df))/np.sqrt(1-Rvals**2)
+    pvals=stats.t.sf(np.abs(tvals),df)*2
+   
+    # cc=[stats.pearsonr(pheno,im) for im in ipmat]
+    # Rvals=np.array([c[0] for c in cc])
+    # pvals=np.array([c[1] for c in cc])
     #rmat=np.reshape(Rvals,[268,268])
     #pmat=np.reshape(pvals,[268,268])
+    
     posedges=(Rvals > 0) & (pvals < pthresh)
     posedges=posedges.astype(int)
     negedges=(Rvals < 0) & (pvals < pthresh)
@@ -63,6 +65,8 @@ def train_cpm(ipmat,pheno,pthresh=0.01):
     ne=ipmat[negedges.flatten().astype(bool),:]
     pe=pe.sum(axis=0)/2
     ne=ne.sum(axis=0)/2
+
+
 
 
     if np.sum(pe) != 0:
@@ -195,8 +199,9 @@ def kfold_cpm(ipmats,pheno,numsubs,k):
         else:
             testinds=randinds[si:]
 
-        traininds=~np.isin(randinds,testinds)
-        
+        traininds=randinds[~np.isin(randinds,testinds)]
+
+
         trainmats=ipmats[:,traininds]
         trainpheno=pheno[traininds]
  
