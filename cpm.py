@@ -46,7 +46,7 @@ def train_cpm(ipmat,pheno,pthresh=0.01):
     #cc=[stats.pearsonr(pheno,im) for im in ipmat]
     num_pheno=len(pheno)
 
-    Rvals=corr_multi.corr_multi_cy(pheno,ipmat)
+    Rvals=corr_multi.corr_multi_cy(pheno,ipmat.T)
     tvals=Rvals/np.sqrt((1-Rvals**2)/(num_pheno-2))
     pvals=stats.t.sf(tvals,num_pheno-1)*2
 
