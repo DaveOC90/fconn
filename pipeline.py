@@ -632,6 +632,96 @@ def phase_based_tsne():
 
 
 
+def compare_staticcon_phasecon(restsubs,wmsubs,eventsubs,ts_parcel_wm,ts_parcel_rest):
+
+    # Event subs
+    # Find possible working memory spreadsheets
+    fpaths=glob.glob(f'../HCP-WM-LR-EPrime/*/*_3T_WM_run*_TAB_filtered.csv')
+    eventsubs=[f.split('/')[2] for f in fpaths]
+    
+    # Filter subs based on whats common to both modalities
+    subs_combo=list(sorted(set(restsubs).intersection(set(wmsubs)).intersection(set(eventsubs))))
+
+
+    wm_phasecon={k:np.mean(cosine_similarity(ts_parcel_wm['sub'+k]),axis=0) for k in subs_combo}
+    wm_phasecon=np.stack(wm_phasecon)
+
+
+
+    rest_phasecon={k:np.mean(cosine_similarity(ts_parcel_rest[k])) for k in ts_parcel_rest.keys()}
+    rest_phasecon=np.stack(rest_phasecon)
+
+
+    rest_sc=np.transpose(rest_sc,[2,0,1])
+    
+    ts_parcel_wm={k:ts_parcel_wm[k] for k in subs_combo[:50]}
+    ts_parcel_rest={k:ts_parcel_rest[k] for k in subs_combo[:50]}
+
+
+
+    # Iterate over subjects
+    for nsub in range(0,1):
+        ts_wm=ts_parcel_wm[subs_combo[nsub]]
+        wm_static_corr=np.corrcoef(ts_wm.T).flatten()
+        wm_mean_phase_corr=np.mean(cosine_similarity(ts_wm),axis=0).flatten()
+        wm_var_phase_corr=np.var(cosine_similarity(ts_wm),axis=0).flatten()
+        wm_cv_phase_corr=wm_var_phase_corr/wm_mean_phase_corr
+
+        corrs=np.corrcoef([wm_static_corr,wm_mean_phase_corr,wm_var_phase_corr,wm_cv_phase_corr])
+        
+        print('WM:',corrs)
+
+
+
+        ts_rest=ts_parcel_rest[subs_combo[nsub]]
+        rest_static_corr=np.corrcoef(ts_rest.T).flatten()
+        rest_mean_phase_corr=np.mean(cosine_similarity(ts_rest),axis=0).flatten()
+        rest_var_phase_corr=np.var(cosine_similarity(ts_rest),axis=0).flatten()
+        rest_cv_phase_corr=rest_var_phase_corr/rest_mean_phase_corr
+
+        corrs=np.corrcoef([rest_static_corr,rest_mean_phase_corr,rest_var_phase_corr,rest_cv_phase_corr])
+        
+        print('Rest:',corrs)
+
+
+
+def load_timeseries(ippath,savepath='',tier1,tier2):
+    if savenpy and not savepath:
+        raise Exception('If savenpy=True, must specify savepath')
+        print("Loading data")
+    
+    if savenpy and not os.path.isfile(savepath):
+        ts_parcel=loadmatv73_tree(ippath)
+        ts_parcel=ts_parcel[tier1][tier2]
+        np.save(savepath,ts_parcel)
+    else:
+        ts_parcel=np.load(savepath).item()
+    
+
+    subs=[k.replace('sub','') for k in ts_parcel_wm.keys()]
+
+
+    return ts_parcel,subs
+
+
+def calc_eigs_dump(ts_parcel,opdir='./'):
+    sublist=list(ts_parcel.leys())
+    nsubs=len(sublist)
+
+
+    for j in range(0,nsubs):
+        print('Sub......',j+1,'out of ',nsubs)
+        start=time.time()
+        phasecon=cosine_similarity(np.vstack(ts_parcel[sublist[j]]))
+
+        for tp in range(0,405):
+            opfname='indvphasecon_tp_'+str(tp).zfill(3)+'_sub_'+str(j).zfill(3)+'.pkl'
+            opfpath=os.path.join(opdir,opfname)
+            tp_phasecon=np.expand_dims(phasecon[tp,:,:],0)
+            pickle.dump(tp_phasecon,open(opfpath,'wb'))
+
+        print("time taken this loop:",time.time()-start)
+    
 
 if __name__ == '__main__':
 
@@ -639,26 +729,12 @@ if __name__ == '__main__':
 
     # Load GSR corrected working memory time series
     print("Loading data")
-    if not os.path.isfile('wm_ts.npy'):
-        ts_parcel_wm=loadmatv73_tree('../HCPDataStruct_GSR_WM_LR.mat')
-        ts_parcel_wm=ts_parcel_wm['data_struct']['WM_LR']
-        np.save('wm_ts.npy',ts_parcel_wm)
-    else:
-        ts_parcel_wm=np.load('wm_ts.npy').item()
-    wmsubs=[k.replace('sub','') for k in ts_parcel_wm.keys()]
 
+   
+    ts_parcel_wm,wmsubs=load_timeseries('../HCPDataStruct_GSR_WM_LR.mat',savepath='wm_ts.npy','data_struct','WM_LR')
+    ts_parcel_rest,restsubs=load_timeseries('../HCPDataStruct_GSR_REST_LR.mat',savepath='rest_ts.npy','data_struct','REST_LR')
 
-    # Load GSR corrected resting state time series
-    if not os.path.isfile('rest_ts.npy'):
-        ts_parcel_rest=loadmatv73_tree('../HCPDataStruct_GSR_REST_LR.mat')
-        ts_parcel_rest=ts_parcel_rest['data_struct']['REST_LR']
-        np.save('rest_ts.npy',ts_parcel_rest)
-    else:
-        ts_parcel_rest=np.load('rest_ts.npy').item()
-
-    restsubs=[k.replace('sub','') for k in ts_parcel_rest.keys()]
-    
-     ## Create one matrix with datasets
+    ## Create one matrix with datasets
     #rest_sc=np.stack([rest_sc[k] for k in rest_sc.keys()],axis=2)
     #rest_sc=np.transpose(rest_sc,[2,0,1])
 
@@ -672,54 +748,6 @@ if __name__ == '__main__':
     subs_combo=list(sorted(set(restsubs).intersection(set(wmsubs)).intersection(set(eventsubs))))
 
 
-
-    #wm_phasecon={k:np.mean(cosine_similarity(ts_parcel_wm['sub'+k]),axis=0) for k in subs_combo}
-    #wm_phasecon=np.stack(wm_phasecon)
-
-
-
-    #rest_phasecon={k:np.mean(cosine_similarity(ts_parcel_rest[k])) for k in ts_parcel_rest.keys()}
-    #rest_phasecon=np.stack(rest_phasecon)
-
-
-    #rest_sc=np.transpose(rest_sc,[2,0,1])
-
-    # # Event subs
-    # # Find possible working memory spreadsheets
-    # fpaths=glob.glob(f'../HCP-WM-LR-EPrime/*/*_3T_WM_run*_TAB_filtered.csv')
-    # eventsubs=[f.split('/')[2] for f in fpaths]
-    
-    # # Filter subs based on whats common to both modalities
-    # subs_combo=list(sorted(set(restsubs).intersection(set(wmsubs)).intersection(set(eventsubs))))
-    
-    # ts_parcel_wm={k:ts_parcel_wm[k] for k in subs_combo[:50]}
-    # ts_parcel_rest={k:ts_parcel_rest[k] for k in subs_combo[:50]}
-
-
-
-    # # Iterate over subjects
-    # for nsub in range(0,1):
-    #     ts_wm=ts_parcel_wm[subs_combo[nsub]]
-    #     wm_static_corr=np.corrcoef(ts_wm.T).flatten()
-    #     wm_mean_phase_corr=np.mean(cosine_similarity(ts_wm),axis=0).flatten()
-    #     wm_var_phase_corr=np.var(cosine_similarity(ts_wm),axis=0).flatten()
-    #     wm_cv_phase_corr=wm_var_phase_corr/wm_mean_phase_corr
-
-    #     corrs=np.corrcoef([wm_static_corr,wm_mean_phase_corr,wm_var_phase_corr,wm_cv_phase_corr])
-        
-    #     print('WM:',corrs)
-
-
-
-    #     ts_rest=ts_parcel_rest[subs_combo[nsub]]
-    #     rest_static_corr=np.corrcoef(ts_rest.T).flatten()
-    #     rest_mean_phase_corr=np.mean(cosine_similarity(ts_rest),axis=0).flatten()
-    #     rest_var_phase_corr=np.var(cosine_similarity(ts_rest),axis=0).flatten()
-    #     rest_cv_phase_corr=rest_var_phase_corr/rest_mean_phase_corr
-
-    #     corrs=np.corrcoef([rest_static_corr,rest_mean_phase_corr,rest_var_phase_corr,rest_cv_phase_corr])
-        
-    #     print('Rest:',corrs)
 
     nsubs=400
     for j in range(0,nsubs):
