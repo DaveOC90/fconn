@@ -31,7 +31,6 @@ function [Rpos,Rneg,Ppos,Pneg,Rmsepos,Rmseneg,test_behav_gather,behav_pred_pos,b
         end
         
         % leave out subject from matrices and behavior
-
         train_vcts = ipmats(:,traininds);
         train_behav = behav(traininds);
         
