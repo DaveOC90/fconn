@@ -50,6 +50,7 @@ def train_cpm(ipmat,pheno,pthresh=0.01):
     Rvals=corr_multi.corr_multi_cy(pheno,ipmat.T)
     tvals=(Rvals*np.sqrt(df))/np.sqrt(1-Rvals**2)
     pvals=stats.t.sf(np.abs(tvals),df)*2
+
    
     # cc=[stats.pearsonr(pheno,im) for im in ipmat]
     # Rvals=np.array([c[0] for c in cc])
@@ -78,6 +79,7 @@ def train_cpm(ipmat,pheno,pthresh=0.01):
         fit_neg=np.polyfit(ne,pheno,1)
     else:
         fit_neg=[]
+
 
     return fit_pos,fit_neg,posedges,negedges
 
