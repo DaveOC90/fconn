@@ -38,12 +38,15 @@ def corr_multi_cy(arr,mat):
     for n in range(0,numcompare):
         submat=mat[:,n]
         bdemean=submat-bn.nanmean(submat)
-        bss=sqrt(bn.ss(bdemean))
-
-        cross_mul=bn.nansum(arrdemean*bdemean)
-        r=cross_mul/(arrss*bss)
-        #p=cross_mul/(numel_m1*arrstd*bn.nanstd(submat))
         
+        bss=sqrt(bn.ss(bdemean))
+        
+        cross_mul=bn.nansum(arrdemean*bdemean)
+    
+        if bss == 0:
+            r=0
+        else:
+            r=cross_mul/(arrss*bss)
 
 
         coll[n]=(r)
