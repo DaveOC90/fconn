@@ -33,12 +33,18 @@ import statsmodels.formula.api as sm
 from scipy.spatial import ConvexHull
 import scipy as sp
 
+
+sys.path.append('/home/dmo39/gitrepos/fconn/')
 from cluster import *
 from data_reduction import *
 from plotting import *
 from dfc import *
 from utils import *
+import cpm
 
+
+from multiprocessing.dummy import Pool as ThreadPool
+from multiprocessing import Pool
 
 def generate_tsne_plots_multiple_measures():    
 
@@ -685,12 +691,9 @@ def compare_staticcon_phasecon(restsubs,wmsubs,eventsubs,ts_parcel_wm,ts_parcel_
 
 
 
-def load_timeseries(ippath,savepath='',tier1,tier2):
-    if savenpy and not savepath:
-        raise Exception('If savenpy=True, must specify savepath')
-        print("Loading data")
+def load_timeseries(ippath,savepath,tier1,tier2):
     
-    if savenpy and not os.path.isfile(savepath):
+    if not os.path.isfile(savepath):
         ts_parcel=loadmatv73_tree(ippath)
         ts_parcel=ts_parcel[tier1][tier2]
         np.save(savepath,ts_parcel)
@@ -698,30 +701,81 @@ def load_timeseries(ippath,savepath='',tier1,tier2):
         ts_parcel=np.load(savepath).item()
     
 
-    subs=[k.replace('sub','') for k in ts_parcel_wm.keys()]
+    subs=[k.replace('sub','') for k in ts_parcel.keys()]
 
 
     return ts_parcel,subs
 
 
-def calc_eigs_dump(ts_parcel,opdir='./'):
-    sublist=list(ts_parcel.leys())
-    nsubs=len(sublist)
+def meanphase_dump(args):
+
+    ts_parcel,opdir,windowtps,subid=args
+
+    ntps=ts_parcel.shape[0]
+    phasecon=cosine_similarity(ts_parcel)
+    fpaths=[]
 
 
-    for j in range(0,nsubs):
-        print('Sub......',j+1,'out of ',nsubs)
-        start=time.time()
-        phasecon=cosine_similarity(np.vstack(ts_parcel[sublist[j]]))
+    for tp in range(0,ntps-windowtps+1):
+        opfname='indvphasecon_tp_'+str(tp).zfill(3)+'_sub_'+subid+'.pkl'
+        opfpath=os.path.join(opdir,opfname)
+        fpaths.append(opfpath)
+        mean_window_phasecon=np.mean(phasecon[tp:tp+windowtps,:,:],axis=0)
+        tp_phasecon=np.expand_dims(mean_window_phasecon,0)
+        pickle.dump(tp_phasecon,open(opfpath,'wb'))
 
-        for tp in range(0,405):
-            opfname='indvphasecon_tp_'+str(tp).zfill(3)+'_sub_'+str(j).zfill(3)+'.pkl'
-            opfpath=os.path.join(opdir,opfname)
-            tp_phasecon=np.expand_dims(phasecon[tp,:,:],0)
-            pickle.dump(tp_phasecon,open(opfpath,'wb'))
+    print('Final data written to: ',opfpath)
 
-        print("time taken this loop:",time.time()-start)
+    return fpaths
+
+def gather_meanphase(args):
+    ippaths,oppath=args
+    numfs=len(ippaths)
+
+    if numfs == 1:
+        fpath=ippaths[0]
+        av_pc=pickle.load(open(fpath,'rb'))
+        os.remove(fpath)
+
+
+    else:
+        gather_mats=[pickle.load(open(ipf,'rb')) for ipf in ippaths]
+        av_pc=np.stack(gather_mats).squeeze()
+        for ipf in ippaths:
+            os.remove(ipf)
+
+    pickle.dump(av_pc,open(oppath,'wb'))
+
+    print('Wrote to:', oppath)
+
+    return oppath
+
+
+
+def run_cpm(args):
+    niters=100
+    ipmats,pmats,tp,readfile=args
+
+    print('timepoint: ',tp)
     
+
+    if readfile == True:
+        ipmats=pickle.load(open(ipmats,'rb'))
+        ipmats=np.transpose(ipmats,[1,2,0])
+        
+    Rvals=np.zeros((niters,1))
+    
+    for i in range(0,niters):
+        print('iter: ',i)
+        Rp,Rn=cpm.run_validate(ipmats,pmats,'splithalf')
+        Rvals[i]=Rp
+
+    opdict={}
+    opdict['tp']=tp
+    opdict['rvals']=Rvals
+    return opdict
+
+
 
 if __name__ == '__main__':
 
@@ -731,12 +785,8 @@ if __name__ == '__main__':
     print("Loading data")
 
    
-    ts_parcel_wm,wmsubs=load_timeseries('../HCPDataStruct_GSR_WM_LR.mat',savepath='wm_ts.npy','data_struct','WM_LR')
-    ts_parcel_rest,restsubs=load_timeseries('../HCPDataStruct_GSR_REST_LR.mat',savepath='rest_ts.npy','data_struct','REST_LR')
-
-    ## Create one matrix with datasets
-    #rest_sc=np.stack([rest_sc[k] for k in rest_sc.keys()],axis=2)
-    #rest_sc=np.transpose(rest_sc,[2,0,1])
+    ts_parcel_wm, wmsubs = load_timeseries('../HCPDataStruct_GSR_WM_LR.mat','wm_ts.npy','data_struct','WM_LR')
+    ts_parcel_rest, restsubs = load_timeseries('../HCPDataStruct_GSR_REST_LR.mat','rest_ts.npy','data_struct','REST_LR')
 
 
     # Event subs
@@ -748,57 +798,81 @@ if __name__ == '__main__':
     subs_combo=list(sorted(set(restsubs).intersection(set(wmsubs)).intersection(set(eventsubs))))
 
 
+    pmat_all=pd.read_csv('/home/dmo39/pmat.csv')
+    pmat_filter=pmat_all[pmat_all.Subject.isin(subs_combo)]
+    pmat_filter_nan=pmat_filter[~pmat_filter.PMAT24_A_CR.isna()]
+    pmats=pmat_filter_nan.PMAT24_A_CR.values.astype(int)
+    subs_combo_pmat=list(pmat_filter_nan.Subject.values.astype(str))
+
+    #z=np.stack([np.corrcoef(ts_parcel_wm['sub'+s].T) for s in subs_combo_pmat])
+
+
+
 
     nsubs=400
-    for j in range(0,nsubs):
-        print('Sub......',j+1,'out of ',nsubs)
-        start=time.time()
-        #wm_phasecon={k:cosine_similarity(np.vstack(ts_parcel_wm['sub'+k][j,:].T),k) for k in subs_combo}
-        wm_phasecon=cosine_similarity(np.vstack(ts_parcel_wm['sub'+subs_combo[j]]))
-        #tp_append.append(np.mean(wm_phasecon[tp:tp+5,:,:],axis=0))
+    #avtps=30
 
-        for tp in range(0,405):
-            opf_name='../indv_phase/wm_indvphasecon_tp_'+str(tp).zfill(3)+'_sub_'+str(j).zfill(3)+'.pkl'
-            tp_phasecon=np.expand_dims(wm_phasecon[tp,:,:],0)
-            pickle.dump(tp_phasecon,open(opf_name,'wb'))
-            #if not os.path.isfile(opf_name):
-                #sp.io.savemat(opf_name,{'wm_pc_indv':tp_phasecon})
-                #pickle.dump(tp_phasecon,open(opf_name,'wb'))
-            #else:
-                #loaded_pc=sp.io.loadmat(opf_name)['wm_pc_indv']
-                #loaded_pc=pickle.load(open(opf_name,'rb'))
-                #loaded_pc=np.append(loaded_pc,tp_phasecon,axis=0)
-                #pickle.dump(loaded_pc,open(opf_name,'wb'))
-                #sp.io.savemat(opf_name,{'wm_pc_indv':loaded_pc})
-        print("time taken this loop:",time.time()-start)
+    avtps_list=[1,5,10,60,120,240,300,350,405]
+
+    for avtps in avtps_list:
 
 
-    av_tp=30
-    for tp in range(0,405-av_tp+1):
-        start=time.time()
-        print('TP......',tp+1,'out of ',405)
-        tp_str=str(tp).zfill(3)
-        tp_fs=sorted(glob.glob('../indv_phase/*tp_'+tp_str+'*.pkl'))
+        thread_ips_pcmats=[(ts_parcel_wm['sub'+subs_combo_pmat[j]],'../indv_phase/',avtps,str(j).zfill(3)) for j in range(0,nsubs)]
 
-        tp_list=[]
-        for j,tpf in enumerate(tp_fs):
 
-            if av_tp == 1:
-                subid=tpf.split('_')[5]
-                loaded_pc=pickle.load(open(tpf,'rb'))
-                tp_list.append(loaded_pc)
-                os.remove(tpf)
-            else:
-                gather_mats=[pickle.load(open(tpf.replace('tp_'+tp_str,'tp_'+str(ntp).zfill(3)),'rb')) for ntp in range(tp,tp+av_tp)]
-                av_pc=np.mean(np.squeeze(np.stack(gather_mats)),axis=0)
-                tp_list.append(av_pc)
-                os.remove(tpf)
-  
-        tp_pc_all=np.squeeze(np.stack(tp_list))
+        print('Starting threading avtps: ',avtps)
 
-        opf_name='../indv_phase/wm_indvphasecon_tp_'+str(tp).zfill(3)+'_av'+str(av_tp)+'.mat'
-        print("One TP mats gathered:",time.time()-start) 
-        sp.io.savemat(opf_name,{'wm_pc_indv':tp_pc_all})
-        print("time taken this loop:",time.time()-start)
+        with ThreadPool(15) as p:
+            x=p.map(meanphase_dump,thread_ips_pcmats)
 
+
+        p.join()
+
+        aggfiles=np.stack(x).T
+
+        opnames=['../indv_phase/wm_pc_tp_'+str(tp).zfill(3)+'_av'+str(avtps).zfill(3)+'.pkl' for tp in range(0,405-avtps+1)]
+
+        ipfiles=list(zip(aggfiles,opnames))
     
+
+        with ThreadPool(15) as p:
+            cpmfiles=p.map(gather_meanphase,ipfiles)
+    
+        p.join()
+
+        #pmatf=io.loadmat('../wm_meanphasecon_pmats.mat')
+        #pmats=pmatf['subpmats']
+        #pmats=np.squeeze(pmats)[:400]
+        #mask=~np.isnan(pmats)
+        #pmats=pmats[mask]
+
+
+
+        cpm_ipfiles=[(cpmfiles[fnum],pmats,fnum,True) for fnum in range(0,405-avtps+1)]
+
+        with Pool(12) as p:
+            Rval_dict=p.map(run_cpm,cpm_ipfiles)
+
+        for cf in cpmfiles:
+            os.remove(cf)
+
+
+        Rvals_op=np.stack([r['rvals'] for r in Rval_dict]).squeeze()
+        np.save('dCPM_'+str(avtps).zfill(3)+'tp_para.npy',Rvals_op)
+
+    #for j in range(0,nsubs):
+    #    print('Sub......',j+1,'out of ',nsubs)
+    #    start=time.time()
+    #    ipdata=np.vstack(ts_parcel_wm['sub'+subs_combo[j]]
+    #    meanphase_dump(ipdata,opdir='../indv_phase/',windowtps=300,str(j).zfill(3))
+
+
+    #av_tp=30
+    #for tp in range(0,405-av_tp+1):
+    #    start=time.time()
+    #    print('TP......',tp+1,'out of ',405)
+    #    tp_str=str(tp).zfill(3)
+    #    tp_fs=sorted(glob.glob('../indv_phase/*tp_'+tp_str+'*.pkl'))
+
+    #    tp_list=[]
+
