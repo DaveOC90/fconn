@@ -99,83 +99,37 @@ def run_validate(ipmats,pheno,cvtype):
     numsubs=ipmats.shape[2]
     ipmats=np.reshape(ipmats,[-1,numsubs])
 
-    
-
-    if cvtype == 'LOO':
-        behav_pred_pos=np.zeros([numsubs])
-        behav_pred_neg=np.zeros([numsubs])
-        for loo in range(0,numsubs):
-
-            print("Running LOO, sub no:",loo)
-      
-            train_mats=np.delete(ipmats,[loo],axis=1)
-            train_pheno=np.delete(pheno,[loo],axis=0)
-            
-            test_mat=ipmats[:,loo]
-            test_phenp=pheno[loo]
-
-            pos_fit,neg_fit,posedges,negedges=train_cpm(train_mats,train_pheno)
-
-            pe=np.sum(test_mat[posedges.flatten().astype(bool)])/2
-            ne=np.sum(test_mat[negedges.flatten().astype(bool)])/2
-
-            if len(pos_fit) > 0:
-                behav_pred_pos[loo]=pos_fit[0]*pe + pos_fit[1]
-            else:
-                behav_pred_pos[loo]='nan'
-
-            if len(neg_fit) > 0:
-               behav_pred_neg[loo]=neg_fit[0]*ne + neg_fit[1]
-            else:
-                behav_pred_neg[loo]='nan'
-
-        
-        Rpos=stats.pearsonr(behav_pred_pos,pheno)[0]
-        Rneg=stats.pearsonr(behav_pred_neg,pheno)[0]
-
-        return Rpos,Rneg
+    cvstr_dct={
+    'LOO' : numsubs,
+    'splithalf' : 2,
+    '5k' : 5,
+    '10k' : 10}
 
 
-    elif cvtype == '5k':
-        bp,bn,ba=kfold_cpm(ipmats,pheno,numsubs,5)
-
-
-
-        ccp=np.array([stats.pearsonr(bp[i,:],ba[i,:]) for i in range(0,5)])
-        Rpos_mean=ccp.mean(axis=0)[0]
-
-        ccn=np.array([stats.pearsonr(bn[i,:],ba[i,:]) for i in range(0,5)])
-        Rneg_mean=ccn.mean(axis=0)[0]
-
-
-
-    elif cvtype == '10k':
-        bp,bn,ba=kfold_cpm(ipmats,pheno,numsubs,10)
-
-
-        ccp=np.array([stats.pearsonr(bp[i,:],ba[i,:]) for i in range(0,10)])
-        Rpos_mean=ccp.mean(axis=0)[0]
-
-        ccn=np.array([stats.pearsonr(bn[i,:],ba[i,:]) for i in range(0,10)])
-        Rneg_mean=ccn.mean(axis=0)[0]
-
-
-
-    elif cvtype == 'splithalf':
-        bp,bn,ba=kfold_cpm(ipmats,pheno,numsubs,2)
-
-        ccp=np.array([stats.pearsonr(bp[i,:],ba[i,:]) for i in range(0,2)])
-        Rpos_mean=ccp.mean(axis=0)[0]
-
-        ccn=np.array([stats.pearsonr(bn[i,:],ba[i,:]) for i in range(0,2)])
-        Rneg_mean=ccn.mean(axis=0)[0]
-
+    if type(cvtype) == str:
+        if cvtype not in cvstr_dct.keys():
+            raise Exception('cvtype must be LOO, 5k, 10k, or splithalf (case sensitive)')
+        else:
+            knum=cvstr_dct[cvtype]
+    elif type(cvtype) == int:
+        knum=cvtype
 
     else:
-        raise Exception('cvtype must be LOO, 5k, 10k, or splithalf')
+        raise Exception('cvtype must be an int, representing number of folds, or a string descibing CV type')
 
 
-    return Rpos_mean,Rneg_mean
+
+    bp,bn,ba,pe,ne=kfold_cpm(ipmats,pheno,numsubs,knum)
+
+    bp_res=np.reshape(bp,numsubs)
+    bn_res=np.reshape(bn,numsubs)
+    ba_res=np.reshape(ba,numsubs)
+
+    Rpos=stats.pearsonr(bp_res,ba_res)[0]
+    Rneg=stats.pearsonr(bn_res,ba_res)[0]
+
+
+    return Rpos,Rneg,pe,ne
     
 
 
@@ -189,6 +143,11 @@ def kfold_cpm(ipmats,pheno,numsubs,k):
     behav_pred_neg=np.zeros([k,samplesize])
 
     behav_actual=np.zeros([k,samplesize])
+
+    nedges=ipmats.shape[0]
+
+    posedge_gather=np.zeros(nedges)
+    negedge_gather=np.zeros(nedges)
 
     for fold in range(0,k):
         print("Running fold:",fold+1)
@@ -219,6 +178,9 @@ def kfold_cpm(ipmats,pheno,numsubs,k):
         ne=np.sum(testmats[negedges.flatten().astype(bool),:], axis=0)/2
 
 
+        posedge_gather=posedge_gather+posedges.flatten()
+        negedge_gather=negedge_gather+negedges.flatten()
+
         if len(pos_fit) > 0:
             behav_pred_pos[fold,:]=pos_fit[0]*pe + pos_fit[1]
         else:
@@ -229,7 +191,11 @@ def kfold_cpm(ipmats,pheno,numsubs,k):
         else:
             behav_pred_neg[fold,:]='nan'
 
-    return behav_pred_pos,behav_pred_neg,behav_actual
+    posedge_gather=posedge_gather/k
+    negedge_gather=negedge_gather/k
+
+
+    return behav_pred_pos,behav_pred_neg,behav_actual,posedge_gather,negedge_gather
 
 
 def sample_500(ipmats,pheno,cvtype):
