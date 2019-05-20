@@ -765,14 +765,25 @@ def run_cpm(args):
         
     Rvals=np.zeros((niters,1))
     
+    pe_gather=np.zeros(268*268)
+    ne_gather=np.zeros(268*268)
+
+
     for i in range(0,niters):
         print('iter: ',i)
-        Rp,Rn=cpm.run_validate(ipmats,pmats,'splithalf')
+        Rp,Rn,pe,ne=cpm.run_validate(ipmats,pmats,'splithalf')
         Rvals[i]=Rp
+        pe_gather=pe_gather+pe
+        ne_gather=ne_gather+ne
+
+    pe_gather=pe_gather/niters
+    ne_gather=ne_gather/niters
 
     opdict={}
     opdict['tp']=tp
     opdict['rvals']=Rvals
+    opdict['posedges']=pe_gather
+    opdict['negedges']=ne_gather
     return opdict
 
 
@@ -812,7 +823,9 @@ if __name__ == '__main__':
     nsubs=400
     #avtps=30
 
-    avtps_list=[1,5,10,60,120,240,300,350,405]
+    #avtps_list=[1,5,10,60,120,240,300,350,405]
+    avtps_list=[405]
+
 
     for avtps in avtps_list:
 
@@ -857,8 +870,9 @@ if __name__ == '__main__':
             os.remove(cf)
 
 
-        Rvals_op=np.stack([r['rvals'] for r in Rval_dict]).squeeze()
-        np.save('dCPM_'+str(avtps).zfill(3)+'tp_para.npy',Rvals_op)
+        #Rvals_op=np.stack([r['rvals'] for r in Rval_dict]).squeeze()
+        
+        np.save('dCPM_'+str(avtps).zfill(3)+'tp_para_edges.npy',Rval_dict)
 
     #for j in range(0,nsubs):
     #    print('Sub......',j+1,'out of ',nsubs)
