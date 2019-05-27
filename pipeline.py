@@ -7,6 +7,7 @@ import pickle
 
 import numpy as np
 import pandas as pd
+import random
 
 import matplotlib
 if (os.name == 'posix' and "DISPLAY" in os.environ) or (os.name == 'nt'):
@@ -35,11 +36,11 @@ import scipy as sp
 
 
 sys.path.append('/home/dmo39/gitrepos/fconn/')
-from cluster import *
-from data_reduction import *
-from plotting import *
-from dfc import *
-from utils import *
+import cluster
+import data_reduction
+import plotting
+import dfc
+import utils
 import cpm
 
 
@@ -50,18 +51,18 @@ def generate_tsne_plots_multiple_measures():
 
     # Load and reshape GSR corrected resting state leading eigenvectors
     print("Loading Data")
-    rest_dct=load_mat_v73('HCPDataStruct_GSR_REST_LR_LE.mat')
+    rest_dct=utils.load_mat_v73('HCPDataStruct_GSR_REST_LR_LE.mat')
     rest_le=rest_dct['Leading_Eig'].value.T
     rest_le=np.reshape(rest_le,[865,1200,268])
 
     # Load and reshape GSR corrected working memory leading eigenvectors
-    wm_dct = load_mat_v73('HCPDataStruct_GSR_WM_LR_LE.mat')
+    wm_dct = utils.load_mat_v73('HCPDataStruct_GSR_WM_LR_LE.mat')
     wm_le=wm_dct['Leading_Eig'].value.T
     wm_le=np.reshape(wm_le,[858,405,268])
 
     # Load GSR corrected working memory time series
     print("Generating static corr mats")
-    ts_parcel_wm=load_mat_v73('HCPDataStruct_GSR_WM_LR.mat')
+    ts_parcel_wm=utils.load_mat_v73('HCPDataStruct_GSR_WM_LR.mat')
     x=ts_parcel_wm['data_struct']['WM_LR']
     ## create dictionary of static correlation matrices
     wm_dct={s[0]:np.corrcoef(s[1].value.T) for s in x.items()}
@@ -72,7 +73,7 @@ def generate_tsne_plots_multiple_measures():
     wm_sc=np.transpose(wm_sc,[2,0,1])
     
     # Load GSR corrected resting state time series
-    ts_parcel_rest=load_mat_v73('HCPDataStruct_GSR_REST_LR.mat')
+    ts_parcel_rest=utils.load_mat_v73('HCPDataStruct_GSR_REST_LR.mat')
     x=ts_parcel_rest['data_struct']['REST_LR']
     ## create dictionary of static correlation matrices
     rest_dct={s[0]:np.corrcoef(s[1].value.T) for s in x.items()}
@@ -137,7 +138,7 @@ def generate_tsne_plots_multiple_measures():
                 print(f"processing {subname}")
 
                 # Caculate PCA
-                pca_comps=return_pca_comps(wm_rest_concat.T,n_components=3)
+                pca_comps=data_reduction.return_pca_comps(wm_rest_concat.T,n_components=3)
                 pca_df=pd.DataFrame(pca_comps.T,columns=['x','y','z'])
 
                 # Setup input to TSNE
@@ -153,7 +154,7 @@ def generate_tsne_plots_multiple_measures():
                     os.makedirs(tsne_dir)
 
                 # Run fast TSNE
-                tsne_dict_run=run_multiple_fast_tsne(iplist,write_res=True,write_dir=tsne_dir)
+                tsne_dict_run=data_reduction.run_multiple_fast_tsne(iplist,write_res=True,write_dir=tsne_dir)
 
                 # Embed key names in column headers and produce tsne df
                 #tsne_dict={k:pd.DataFrame(tsne_dict_run[k].values,columns=list(map(lambda x : k+'_'+x,tsne_dict_run[k].columns))) for k in tsne_dict_run.keys()} 
@@ -224,7 +225,7 @@ def generate_tsne_plots_multiple_measures():
 
     # PCA of all
     
-    pca_comps=return_pca_comps(rest_wm_agg_wevs.T,n_components=3)
+    pca_comps=data_reduction.return_pca_comps(rest_wm_agg_wevs.T,n_components=3)
     big_pca_df=pd.DataFrame(pca_comps.T,columns=['x','y','z'])
     x,y=big_pca_df.shape
     big_pca_df['VolumeAssignment']=np.reshape(np.repeat(np.vstack(np.arange(1,1608)),59,axis=1).T,[1607*59,1])
@@ -249,8 +250,8 @@ def generate_tsne_plots_multiple_measures():
         os.makedirs(tsne_dir)
 
     # TSNE of All
-    #fast_tsne_LE_33=run_multiple_fast_tsne(iplist,write_res=True,write_dir=tsne_dir)
-    fast_tsne_LE_59=run_multiple_fast_tsne(iplist,write_res=True,write_dir=tsne_dir)
+    #fast_tsne_LE_33=data_reduction.run_multiple_fast_tsne(iplist,write_res=True,write_dir=tsne_dir)
+    fast_tsne_LE_59=data_reduction.run_multiple_fast_tsne(iplist,write_res=True,write_dir=tsne_dir)
 
     num_tsne=len(fast_tsne_LE_59)
 
@@ -270,7 +271,7 @@ def generate_tsne_plots_multiple_measures():
 
 
     #print("Running HDBSCAN")
-    #clus_sol=run_hdbscan(data_subset.T)
+    #clus_sol=cluster.run_hdbscan(data_subset.T)
 
 
     subs=bigdf.subid.unique()
@@ -355,7 +356,7 @@ def phase_based_tsne():
     # Load GSR corrected working memory time series
     print("Generating static corr mats")
     if not os.path.isfile('wm_ts.npy'):
-        ts_parcel_wm=loadmatv73_tree('../HCPDataStruct_GSR_WM_LR.mat')
+        ts_parcel_wm=utils.loadmatv73_tree('../HCPDataStruct_GSR_WM_LR.mat')
         ts_parcel_wm=ts_parcel_wm['data_struct']['WM_LR']
         np.save('wm_ts.npy',ts_parcel_wm)
     else:
@@ -377,7 +378,7 @@ def phase_based_tsne():
 
     # Load GSR corrected resting state time series
     if not os.path.isfile('rest_ts.npy'):
-        ts_parcel_rest=loadmatv73_tree('../HCPDataStruct_GSR_REST_LR.mat')
+        ts_parcel_rest=utils.loadmatv73_tree('../HCPDataStruct_GSR_REST_LR.mat')
         ts_parcel_rest=ts_parcel_rest['data_struct']['REST_LR']
         np.save('rest_ts.npy',ts_parcel_rest)
     else:
@@ -460,7 +461,7 @@ def phase_based_tsne():
             print(f"processing {subname}")
 
             # Caculate PCA
-            pca_comps=return_pca_comps(wm_rest_concat.T,n_components=3)
+            pca_comps=data_reduction.return_pca_comps(wm_rest_concat.T,n_components=3)
             pca_df=pd.DataFrame(pca_comps.T,columns=['x','y','z'])
 
             # Setup input to TSNE
@@ -476,7 +477,7 @@ def phase_based_tsne():
                 os.makedirs(tsne_dir)
 
             # Run fast TSNE
-            tsne_dict_run=run_multiple_fast_tsne(iplist,write_res=True,write_dir=tsne_dir)
+            tsne_dict_run=data_reduction.run_multiple_fast_tsne(iplist,write_res=True,write_dir=tsne_dir)
 
             # Convert TSNE results to DF and reorganize columns
             tsne_df_merged=pd.concat(tsne_dict_run)
@@ -541,7 +542,7 @@ def phase_based_tsne():
 
     # PCA of all
     
-    pca_comps=return_pca_comps(rest_wm_agg_wevs.T,n_components=3)
+    pca_comps=data_reduction.return_pca_comps(rest_wm_agg_wevs.T,n_components=3)
     big_pca_df=pd.DataFrame(pca_comps.T,columns=['x','y','z'])
     x,y=big_pca_df.shape
     big_pca_df['VolumeAssignment']=np.reshape(np.repeat(np.vstack(np.arange(1,1608)),numsubs,axis=1).T,[1607*numsubs,1])
@@ -566,7 +567,7 @@ def phase_based_tsne():
 
     # TSNE of All
     #fast_tsne_LE_33=run_multiple_fast_tsne(iplist,write_res=True,write_dir=tsne_dir)
-    fast_tsne_group=run_multiple_fast_tsne(iplist,write_res=True,write_dir=tsne_dir)
+    fast_tsne_group=data_reduction.run_multiple_fast_tsne(iplist,write_res=True,write_dir=tsne_dir)
 
     num_tsne=len(fast_tsne_group)
 
@@ -586,7 +587,7 @@ def phase_based_tsne():
 
 
     #print("Running HDBSCAN")
-    #clus_sol=run_hdbscan(data_subset.T)
+    #clus_sol=cluster.run_hdbscan(data_subset.T)
 
 
     subs=bigdf.subid.unique()
@@ -649,12 +650,12 @@ def compare_staticcon_phasecon(restsubs,wmsubs,eventsubs,ts_parcel_wm,ts_parcel_
     subs_combo=list(sorted(set(restsubs).intersection(set(wmsubs)).intersection(set(eventsubs))))
 
 
-    wm_phasecon={k:np.mean(cosine_similarity(ts_parcel_wm['sub'+k]),axis=0) for k in subs_combo}
+    wm_phasecon={k:np.mean(dfc.cosine_similarity(ts_parcel_wm['sub'+k]),axis=0) for k in subs_combo}
     wm_phasecon=np.stack(wm_phasecon)
 
 
 
-    rest_phasecon={k:np.mean(cosine_similarity(ts_parcel_rest[k])) for k in ts_parcel_rest.keys()}
+    rest_phasecon={k:np.mean(dfc.cosine_similarity(ts_parcel_rest[k])) for k in ts_parcel_rest.keys()}
     rest_phasecon=np.stack(rest_phasecon)
 
 
@@ -669,8 +670,8 @@ def compare_staticcon_phasecon(restsubs,wmsubs,eventsubs,ts_parcel_wm,ts_parcel_
     for nsub in range(0,1):
         ts_wm=ts_parcel_wm[subs_combo[nsub]]
         wm_static_corr=np.corrcoef(ts_wm.T).flatten()
-        wm_mean_phase_corr=np.mean(cosine_similarity(ts_wm),axis=0).flatten()
-        wm_var_phase_corr=np.var(cosine_similarity(ts_wm),axis=0).flatten()
+        wm_mean_phase_corr=np.mean(dfc.cosine_similarity(ts_wm),axis=0).flatten()
+        wm_var_phase_corr=np.var(dfc.cosine_similarity(ts_wm),axis=0).flatten()
         wm_cv_phase_corr=wm_var_phase_corr/wm_mean_phase_corr
 
         corrs=np.corrcoef([wm_static_corr,wm_mean_phase_corr,wm_var_phase_corr,wm_cv_phase_corr])
@@ -681,110 +682,14 @@ def compare_staticcon_phasecon(restsubs,wmsubs,eventsubs,ts_parcel_wm,ts_parcel_
 
         ts_rest=ts_parcel_rest[subs_combo[nsub]]
         rest_static_corr=np.corrcoef(ts_rest.T).flatten()
-        rest_mean_phase_corr=np.mean(cosine_similarity(ts_rest),axis=0).flatten()
-        rest_var_phase_corr=np.var(cosine_similarity(ts_rest),axis=0).flatten()
+        rest_mean_phase_corr=np.mean(dfc.cosine_similarity(ts_rest),axis=0).flatten()
+        rest_var_phase_corr=np.var(dfc.cosine_similarity(ts_rest),axis=0).flatten()
         rest_cv_phase_corr=rest_var_phase_corr/rest_mean_phase_corr
 
         corrs=np.corrcoef([rest_static_corr,rest_mean_phase_corr,rest_var_phase_corr,rest_cv_phase_corr])
         
         print('Rest:',corrs)
 
-
-
-def load_timeseries(ippath,savepath,tier1,tier2):
-    
-    if not os.path.isfile(savepath):
-        ts_parcel=loadmatv73_tree(ippath)
-        ts_parcel=ts_parcel[tier1][tier2]
-        np.save(savepath,ts_parcel)
-    else:
-        ts_parcel=np.load(savepath).item()
-    
-
-    subs=[k.replace('sub','') for k in ts_parcel.keys()]
-
-
-    return ts_parcel,subs
-
-
-def meanphase_dump(args):
-
-    ts_parcel,opdir,windowtps,subid=args
-
-    ntps=ts_parcel.shape[0]
-    phasecon=cosine_similarity(ts_parcel)
-    fpaths=[]
-
-
-    for tp in range(0,ntps-windowtps+1):
-        opfname='indvphasecon_tp_'+str(tp).zfill(3)+'_sub_'+subid+'.pkl'
-        opfpath=os.path.join(opdir,opfname)
-        fpaths.append(opfpath)
-        mean_window_phasecon=np.mean(phasecon[tp:tp+windowtps,:,:],axis=0)
-        tp_phasecon=np.expand_dims(mean_window_phasecon,0)
-        pickle.dump(tp_phasecon,open(opfpath,'wb'))
-
-    print('Final data written to: ',opfpath)
-
-    return fpaths
-
-def gather_meanphase(args):
-    ippaths,oppath=args
-    numfs=len(ippaths)
-
-    if numfs == 1:
-        fpath=ippaths[0]
-        av_pc=pickle.load(open(fpath,'rb'))
-        os.remove(fpath)
-
-
-    else:
-        gather_mats=[pickle.load(open(ipf,'rb')) for ipf in ippaths]
-        av_pc=np.stack(gather_mats).squeeze()
-        for ipf in ippaths:
-            os.remove(ipf)
-
-    pickle.dump(av_pc,open(oppath,'wb'))
-
-    print('Wrote to:', oppath)
-
-    return oppath
-
-
-
-def run_cpm(args):
-    niters=100
-    ipmats,pmats,tp,readfile=args
-
-    print('timepoint: ',tp)
-    
-
-    if readfile == True:
-        ipmats=pickle.load(open(ipmats,'rb'))
-        ipmats=np.transpose(ipmats,[1,2,0])
-        
-    Rvals=np.zeros((niters,1))
-    
-    pe_gather=np.zeros(268*268)
-    ne_gather=np.zeros(268*268)
-
-
-    for i in range(0,niters):
-        print('iter: ',i)
-        Rp,Rn,pe,ne=cpm.run_validate(ipmats,pmats,'splithalf')
-        Rvals[i]=Rp
-        pe_gather=pe_gather+pe
-        ne_gather=ne_gather+ne
-
-    pe_gather=pe_gather/niters
-    ne_gather=ne_gather/niters
-
-    opdict={}
-    opdict['tp']=tp
-    opdict['rvals']=Rvals
-    opdict['posedges']=pe_gather
-    opdict['negedges']=ne_gather
-    return opdict
 
 
 
@@ -796,8 +701,8 @@ if __name__ == '__main__':
     print("Loading data")
 
    
-    ts_parcel_wm, wmsubs = load_timeseries('../HCPDataStruct_GSR_WM_LR.mat','wm_ts.npy','data_struct','WM_LR')
-    ts_parcel_rest, restsubs = load_timeseries('../HCPDataStruct_GSR_REST_LR.mat','rest_ts.npy','data_struct','REST_LR')
+    ts_parcel_wm, wmsubs = utils.load_timeseries('../HCPDataStruct_GSR_WM_LR.mat','wm_ts.npy','data_struct','WM_LR')
+    ts_parcel_rest, restsubs = utils.load_timeseries('../HCPDataStruct_GSR_REST_LR.mat','rest_ts.npy','data_struct','REST_LR')
 
 
     # Event subs
@@ -819,12 +724,25 @@ if __name__ == '__main__':
 
 
 
+    restnumvols=405
+    ts_parcel_rest={k:ts_parcel_rest[k][:restnumvols,:] for k in ts_parcel_rest}
 
     nsubs=400
     #avtps=30
 
-    #avtps_list=[1,5,10,60,120,240,300,350,405]
-    avtps_list=[405]
+    ## WM Shuffle
+    randwminds=[np.random.permutation(405) for i in range(0,len(ts_parcel_wm))]
+    ts_parcel_wm={k:ts_parcel_wm[k][randwminds[i],:] for i,k in enumerate(ts_parcel_wm)}
+
+    randdict={}
+    randdict['Randinds']=randwminds
+    randdict['wmkeys']=list(ts_parcel_wm.keys())
+    randdict['filteredsubs']=subs_combo_pmat
+    np.save('randinds_subs_wm',randdict)
+
+
+    avtps_list=[1,5,10,30,60,120,240,300,350,405]
+    #avtps_list=[30]
 
 
     for avtps in avtps_list:
@@ -836,35 +754,27 @@ if __name__ == '__main__':
         print('Starting threading avtps: ',avtps)
 
         with ThreadPool(15) as p:
-            x=p.map(meanphase_dump,thread_ips_pcmats)
+            x=p.map(dfc.meanphase_dump,thread_ips_pcmats)
 
 
         p.join()
 
         aggfiles=np.stack(x).T
 
-        opnames=['../indv_phase/wm_pc_tp_'+str(tp).zfill(3)+'_av'+str(avtps).zfill(3)+'.pkl' for tp in range(0,405-avtps+1)]
+        opnames=['../indv_phase/wmrand_pc_tp_'+str(tp).zfill(3)+'_av'+str(avtps).zfill(3)+'.pkl' for tp in range(0,405-avtps+1)]
 
         ipfiles=list(zip(aggfiles,opnames))
     
 
         with ThreadPool(15) as p:
-            cpmfiles=p.map(gather_meanphase,ipfiles)
+            cpmfiles=p.map(dfc.gather_meanphase,ipfiles)
     
         p.join()
-
-        #pmatf=io.loadmat('../wm_meanphasecon_pmats.mat')
-        #pmats=pmatf['subpmats']
-        #pmats=np.squeeze(pmats)[:400]
-        #mask=~np.isnan(pmats)
-        #pmats=pmats[mask]
-
-
 
         cpm_ipfiles=[(cpmfiles[fnum],pmats,fnum,True) for fnum in range(0,405-avtps+1)]
 
         with Pool(12) as p:
-            Rval_dict=p.map(run_cpm,cpm_ipfiles)
+            Rval_dict=p.map(cpm.run_cpm,cpm_ipfiles)
 
         for cf in cpmfiles:
             os.remove(cf)
@@ -872,13 +782,13 @@ if __name__ == '__main__':
 
         #Rvals_op=np.stack([r['rvals'] for r in Rval_dict]).squeeze()
         
-        np.save('dCPM_'+str(avtps).zfill(3)+'tp_para_edges.npy',Rval_dict)
+        np.save('dCPM_wmrand_'+str(avtps).zfill(3)+'tp_para_edges.npy',Rval_dict)
 
     #for j in range(0,nsubs):
     #    print('Sub......',j+1,'out of ',nsubs)
     #    start=time.time()
     #    ipdata=np.vstack(ts_parcel_wm['sub'+subs_combo[j]]
-    #    meanphase_dump(ipdata,opdir='../indv_phase/',windowtps=300,str(j).zfill(3))
+    #    dfc.meanphase_dump(ipdata,opdir='../indv_phase/',windowtps=300,str(j).zfill(3))
 
 
     #av_tp=30

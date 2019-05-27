@@ -9,6 +9,7 @@ import random
 import pyximport
 pyximport.install(setup_args={"include_dirs":np.get_include()},reload_support=True)
 import corr_multi
+import pickle
 
 def read_mats(iplist):
 
@@ -129,7 +130,7 @@ def run_validate(ipmats,pheno,cvtype):
     Rneg=stats.pearsonr(bn_res,ba_res)[0]
 
 
-    return Rpos,Rneg,pe,ne
+    return Rpos,Rneg,pe,ne,bp_res,bn_res,ba_res
     
 
 
@@ -231,6 +232,61 @@ def sample_500(ipmats,pheno,cvtype):
     opdict['Sample_Indices']=randinds500
 
     return opdict
+
+
+
+
+
+
+
+def run_cpm(args):
+    niters=100
+    ipmats,pmats,tp,readfile=args
+
+    print('timepoint: ',tp)
+    
+
+    if readfile == True:
+        ipmats=pickle.load(open(ipmats,'rb'))
+        ipmats=np.transpose(ipmats,[1,2,0])
+        
+    Rvals=np.zeros((niters,1))
+    
+    pe_gather=np.zeros(268*268)
+    ne_gather=np.zeros(268*268)
+    bp_gather=[]
+    bn_gather=[]
+    ba_gather=[]
+
+
+    for i in range(0,niters):
+        print('iter: ',i)
+        Rp,Rn,pe,ne,bp,bn,ba=cpm.run_validate(ipmats,pmats,'splithalf')
+        Rvals[i]=Rp
+        pe_gather=pe_gather+pe
+        ne_gather=ne_gather+ne
+        bp_gather.append(bp)
+        bn_gather.append(bn)
+        ba_gather.append(ba)
+
+    pe_gather=pe_gather/niters
+    ne_gather=ne_gather/niters
+    bp_gather=np.stack(bp_gather)
+    bn_gather=np.stack(bn_gather)
+    ba_gather=np.stack(ba_gather)
+
+
+    opdict={}
+    opdict['tp']=tp
+    opdict['rvals']=Rvals
+    opdict['posedges']=pe_gather
+    opdict['negedges']=ne_gather
+    opdict['posbehav']=bp_gather
+    opdict['negbehav']=bn_gather
+    opdict['actbehav']=ba_gather
+
+    return opdict
+
 
 
 

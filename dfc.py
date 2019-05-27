@@ -6,6 +6,7 @@ from functools import reduce
 
 import numpy as np
 import pandas as pd
+import pickle
 
 from leida import calc_eigs
 
@@ -168,3 +169,48 @@ def indv_leida_mats(onesubdata,numeigs=1):
     opdict['FCD']=fcd_list
 
     return opdict
+
+
+def meanphase_dump(args):
+
+    ts_parcel,opdir,windowtps,subid=args
+
+    ntps=ts_parcel.shape[0]
+    phasecon=cosine_similarity(ts_parcel)
+    fpaths=[]
+
+
+    for tp in range(0,ntps-windowtps+1):
+        opfname='indvphasecon_tp_'+str(tp).zfill(3)+'_sub_'+subid+'.pkl'
+        opfpath=os.path.join(opdir,opfname)
+        fpaths.append(opfpath)
+        mean_window_phasecon=np.mean(phasecon[tp:tp+windowtps,:,:],axis=0)
+        tp_phasecon=np.expand_dims(mean_window_phasecon,0)
+        pickle.dump(tp_phasecon,open(opfpath,'wb'))
+
+    print('Final data written to: ',opfpath)
+
+    return fpaths
+
+def gather_meanphase(args):
+    ippaths,oppath=args
+    numfs=len(ippaths)
+
+    if numfs == 1:
+        fpath=ippaths[0]
+        av_pc=pickle.load(open(fpath,'rb'))
+        os.remove(fpath)
+
+
+    else:
+        gather_mats=[pickle.load(open(ipf,'rb')) for ipf in ippaths]
+        av_pc=np.stack(gather_mats).squeeze()
+        for ipf in ippaths:
+            os.remove(ipf)
+
+    pickle.dump(av_pc,open(oppath,'wb'))
+
+    print('Wrote to:', oppath)
+
+    return oppath
+
