@@ -155,3 +155,20 @@ def loadmatv73_tree(fname):
     bdct=recurs_dict(f_load)
 
     return bdct
+
+
+def load_timeseries(ippath,savepath,tier1,tier2):
+    
+    if not os.path.isfile(savepath):
+        ts_parcel=loadmatv73_tree(ippath)
+        ts_parcel=ts_parcel[tier1][tier2]
+        np.save(savepath,ts_parcel)
+    else:
+        ts_parcel=np.load(savepath).item()
+    
+
+    subs=[k.replace('sub','') for k in ts_parcel.keys()]
+
+
+    return ts_parcel,subs
+
