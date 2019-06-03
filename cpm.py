@@ -249,32 +249,46 @@ def run_cpm(args):
     if readfile == True:
         ipmats=pickle.load(open(ipmats,'rb'))
         ipmats=np.transpose(ipmats,[1,2,0])
-        
-    Rvals=np.zeros((niters,1))
     
+    numsubs=ipmats.shape[2]
+
+    Rvals=np.zeros((niters,1))
+    randinds=np.arange(0,numsubs)
+        
     pe_gather=np.zeros(268*268)
     ne_gather=np.zeros(268*268)
     bp_gather=[]
     bn_gather=[]
     ba_gather=[]
+    randinds_gather=[]
 
+    
 
     for i in range(0,niters):
         print('iter: ',i)
-        Rp,Rn,pe,ne,bp,bn,ba=cpm.run_validate(ipmats,pmats,'splithalf')
+
+        random.shuffle(randinds)
+        randinds400=randinds[:400]
+  
+        ipmats_rand=ipmats[:,:,randinds400]
+        pmats_rand=pmats[randinds400]
+
+
+        Rp,Rn,pe,ne,bp,bn,ba=run_validate(ipmats_rand,pmats_rand,'splithalf')
         Rvals[i]=Rp
         pe_gather=pe_gather+pe
         ne_gather=ne_gather+ne
         bp_gather.append(bp)
         bn_gather.append(bn)
         ba_gather.append(ba)
+        randinds_gather.append(randinds400)
 
     pe_gather=pe_gather/niters
     ne_gather=ne_gather/niters
     bp_gather=np.stack(bp_gather)
     bn_gather=np.stack(bn_gather)
     ba_gather=np.stack(ba_gather)
-
+    randinds_gather=np.stack(randinds_gather)
 
     opdict={}
     opdict['tp']=tp
@@ -284,6 +298,7 @@ def run_cpm(args):
     opdict['posbehav']=bp_gather
     opdict['negbehav']=bn_gather
     opdict['actbehav']=ba_gather
+    opdict['randinds']=randinds_gather
 
     return opdict
 
