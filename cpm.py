@@ -10,6 +10,7 @@ import pyximport
 pyximport.install(setup_args={"include_dirs":np.get_include()},reload_support=True)
 import corr_multi
 import pickle
+import pdb
 
 def read_mats(iplist):
 
@@ -85,6 +86,23 @@ def train_cpm(ipmat,pheno,pthresh=0.01):
     return fit_pos,fit_neg,posedges,negedges
 
 
+
+def apply_cpm(ipmats,edges,model):
+
+    """
+    Accepts input matrices, edges and model
+    Returns predicted behavior
+    """
+
+    
+    edgesum=np.sum(ipmats[edges.flatten().astype(bool),:], axis=0)/2   
+    behav_pred=model[0]*edgesum + model[1]
+
+
+
+    return behav_pred
+
+
 def testcorr():
     ipdata=io.loadmat('../../Fingerprinting/ipmats.mat')
     ipmats=ipdata['ipmats']
@@ -97,8 +115,8 @@ def testcorr():
 
 def run_validate(ipmats,pheno,cvtype):
 
-    numsubs=ipmats.shape[2]
-    ipmats=np.reshape(ipmats,[-1,numsubs])
+    numsubs=ipmats.shape[1]
+    #ipmats=np.reshape(ipmats,[-1,numsubs])
 
     cvstr_dct={
     'LOO' : numsubs,
@@ -120,7 +138,7 @@ def run_validate(ipmats,pheno,cvtype):
 
 
 
-    bp,bn,ba,pe,ne=kfold_cpm(ipmats,pheno,numsubs,knum)
+    bp,bn,ba,pe,ne,pf,nf=kfold_cpm(ipmats,pheno,numsubs,knum)
 
     bp_res=np.reshape(bp,numsubs)
     bn_res=np.reshape(bn,numsubs)
@@ -130,7 +148,7 @@ def run_validate(ipmats,pheno,cvtype):
     Rneg=stats.pearsonr(bn_res,ba_res)[0]
 
 
-    return Rpos,Rneg,pe,ne,bp_res,bn_res,ba_res
+    return Rpos,Rneg,pe,ne,bp_res,bn_res,ba_res,pf,nf
     
 
 
@@ -149,6 +167,8 @@ def kfold_cpm(ipmats,pheno,numsubs,k):
 
     posedge_gather=np.zeros(nedges)
     negedge_gather=np.zeros(nedges)
+    pf_gather=[]
+    nf_gather=[]
 
     for fold in range(0,k):
         print("Running fold:",fold+1)
@@ -181,6 +201,8 @@ def kfold_cpm(ipmats,pheno,numsubs,k):
 
         posedge_gather=posedge_gather+posedges.flatten()
         negedge_gather=negedge_gather+negedges.flatten()
+        pf_gather.append(pos_fit)
+        nf_gather.append(neg_fit)
 
         if len(pos_fit) > 0:
             behav_pred_pos[fold,:]=pos_fit[0]*pe + pos_fit[1]
@@ -196,7 +218,7 @@ def kfold_cpm(ipmats,pheno,numsubs,k):
     negedge_gather=negedge_gather/k
 
 
-    return behav_pred_pos,behav_pred_neg,behav_actual,posedge_gather,negedge_gather
+    return behav_pred_pos,behav_pred_neg,behav_actual,posedge_gather,negedge_gather, pf_gather, nf_gather
 
 
 def sample_500(ipmats,pheno,cvtype):
@@ -240,27 +262,71 @@ def sample_500(ipmats,pheno,cvtype):
 
 
 def run_cpm(args):
-    niters=100
-    ipmats,pmats,tp,readfile=args
 
+
+    niters=100
+    ipmats,pmats,tp,readfile,subs_to_run,tpmask,sublist=args
+
+    
     print('timepoint: ',tp)
     
 
     if readfile == True:
         ipmats=pickle.load(open(ipmats,'rb'))
-        ipmats=np.transpose(ipmats,[1,2,0])
-    
-    numsubs=ipmats.shape[2]
+        if len(ipmats.shape) == 3:
+            ipmats=np.transpose(ipmats,[1,2,0])
+            if ipmats.shape[0] != ipmats.shape[1]:
+                raise Exception('This is a 3D array but the dimensions typically designated ROIs are not equal')
+            nrois=ipmats.shape[0]**2
+            numsubs=ipmats.shape[2]
+            ipmats=ipmats.reshape(nrois,numsubs)
+            
+        elif len(ipmats.shape) == 2:
+            ipmats=np.transpose(ipmats,[1,0])
+            nrois=ipmats.shape[0]
+            numsubs=ipmats.shape[1]
+        else:
+            raise Exception('Input matrix should be 2 or 3 Dimensional (Nsubs x Nfeatures) or (Nsubs x Nrois x Nrois)')
+            
+
+    if type(tpmask) == np.ndarray and tpmask.dtype == bool:
+
+        ipmats=ipmats[:,tpmask]
+        pmats=pmats[tpmask]
+
+        if ipmats.shape[1] < subs_to_run:
+            raise Exception('Not enough subs')
+        if pmats.shape[0] < subs_to_run:
+            raise Exception('Not enough dependent variables')
+
+        ipmats=ipmats[:,:subs_to_run]
+        pmats=pmats[:subs_to_run]
+
+        numsubs=subs_to_run
+
+    elif type(tpmask) == bool and tpmask == False:
+        pass
+    else:
+        raise Exception('Datatype of mask not recognized, must be a boolean ndarray or boolean of value "False"')
+        
+
+
+
+    #ipmats=np.arctanh(ipmats)
+    #ipmats[ipmats == np.inf] = np.arctanh(0.999999)
 
     Rvals=np.zeros((niters,1))
     randinds=np.arange(0,numsubs)
-        
-    pe_gather=np.zeros(268*268)
-    ne_gather=np.zeros(268*268)
+
+
+    pe_gather=np.zeros(nrois)
+    ne_gather=np.zeros(nrois)
     bp_gather=[]
     bn_gather=[]
     ba_gather=[]
     randinds_gather=[]
+    pf_gather=[]
+    nf_gather=[]
 
     
 
@@ -268,20 +334,23 @@ def run_cpm(args):
         print('iter: ',i)
 
         random.shuffle(randinds)
-        randinds400=randinds[:400]
-  
-        ipmats_rand=ipmats[:,:,randinds400]
-        pmats_rand=pmats[randinds400]
+        randinds_torun=randinds[:subs_to_run]
+        #randinds_to_run=randinds  
+
+        ipmats_rand=ipmats[:,randinds_torun]
+        pmats_rand=pmats[randinds_torun]
 
 
-        Rp,Rn,pe,ne,bp,bn,ba=run_validate(ipmats_rand,pmats_rand,'splithalf')
+        Rp,Rn,pe,ne,bp,bn,ba,pf,nf=run_validate(ipmats_rand,pmats_rand,'splithalf')
         Rvals[i]=Rp
         pe_gather=pe_gather+pe
         ne_gather=ne_gather+ne
         bp_gather.append(bp)
         bn_gather.append(bn)
         ba_gather.append(ba)
-        randinds_gather.append(randinds400)
+        randinds_gather.append(randinds_torun)
+        pf_gather.append(pf)
+        nf_gather.append(nf)
 
     pe_gather=pe_gather/niters
     ne_gather=ne_gather/niters
@@ -299,6 +368,12 @@ def run_cpm(args):
     opdict['negbehav']=bn_gather
     opdict['actbehav']=ba_gather
     opdict['randinds']=randinds_gather
+    opdict['posfits']=pf_gather
+    opdict['negfits']=pf_gather
+    opdict['sublist']=sublist
+
+    if type(tpmask) == np.ndarray and tpmask.dtype == bool:
+        opdict['tpmask']=tpmask
 
     return opdict
 
