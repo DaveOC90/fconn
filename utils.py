@@ -132,7 +132,7 @@ def loadmatv73(fname):
 
 def loadmatv73_tree(fname):
     '''
-    Help fromL
+    Help from:
     https://codereview.stackexchange.com/questions/38038/recursively-convert-a-list-of-lists-into-a-dict-of-dicts
     '''
     f_load = h5py.File(fname, 'r')
@@ -171,4 +171,125 @@ def load_timeseries(ippath,savepath,tier1,tier2):
 
 
     return ts_parcel,subs
+
+
+
+
+
+def compare_staticcon_phasecon(restsubs,wmsubs,eventsubs,ts_parcel_wm,ts_parcel_rest):
+
+    # Event subs
+    # Find possible working memory spreadsheets
+    fpaths=glob.glob(f'../HCP-WM-LR-EPrime/*/*_3T_WM_run*_TAB_filtered.csv')
+    eventsubs=[f.split('/')[2] for f in fpaths]
+    
+    # Filter subs based on whats common to both modalities
+    subs_combo=list(sorted(set(restsubs).intersection(set(wmsubs)).intersection(set(eventsubs))))
+
+
+    wm_phasecon={k:np.mean(dfc.cosine_similarity(ts_parcel_wm['sub'+k]),axis=0) for k in subs_combo}
+    wm_phasecon=np.stack(wm_phasecon)
+
+
+
+    rest_phasecon={k:np.mean(dfc.cosine_similarity(ts_parcel_rest[k])) for k in ts_parcel_rest.keys()}
+    rest_phasecon=np.stack(rest_phasecon)
+
+
+    rest_sc=np.transpose(rest_sc,[2,0,1])
+    
+    ts_parcel_wm={k:ts_parcel_wm[k] for k in subs_combo[:50]}
+    ts_parcel_rest={k:ts_parcel_rest[k] for k in subs_combo[:50]}
+
+
+
+    # Iterate over subjects
+    for nsub in range(0,1):
+        ts_wm=ts_parcel_wm[subs_combo[nsub]]
+        wm_static_corr=np.corrcoef(ts_wm.T).flatten()
+        wm_mean_phase_corr=np.mean(dfc.cosine_similarity(ts_wm),axis=0).flatten()
+        wm_var_phase_corr=np.var(dfc.cosine_similarity(ts_wm),axis=0).flatten()
+        wm_cv_phase_corr=wm_var_phase_corr/wm_mean_phase_corr
+
+        corrs=np.corrcoef([wm_static_corr,wm_mean_phase_corr,wm_var_phase_corr,wm_cv_phase_corr])
+        
+        print('WM:',corrs)
+
+
+
+        ts_rest=ts_parcel_rest[subs_combo[nsub]]
+        rest_static_corr=np.corrcoef(ts_rest.T).flatten()
+        rest_mean_phase_corr=np.mean(dfc.cosine_similarity(ts_rest),axis=0).flatten()
+        rest_var_phase_corr=np.var(dfc.cosine_similarity(ts_rest),axis=0).flatten()
+        rest_cv_phase_corr=rest_var_phase_corr/rest_mean_phase_corr
+
+        corrs=np.corrcoef([rest_static_corr,rest_mean_phase_corr,rest_var_phase_corr,rest_cv_phase_corr])
+        
+        print('Rest:',corrs)
+
+
+
+def gather_unfilt_ts(ip_globstr):
+    fs=glob.glob(ip_globstr)
+    fs=list(sorted(fs))
+    sublist=list(sorted(['sub'+f.split('/')[7] for f in fs]))
+
+    opdict={}
+    for i,fp in enumerate(fs):
+        print(fp)
+        subname=sublist[i]
+        tsdf=pd.read_csv(fp,sep='\t',index_col=0)
+        tsdf=tsdf.dropna(axis=1)
+        opdict[subname]=tsdf.values
+    np.save('./wm_ts_unfiltered.npy',opdict)
+
+def produce_sublist(opname):
+
+    # Load GSR corrected working memory time series
+    print("Loading working memory and resting to determine subs overlap")
+
+    ts_parcel_wm, wmsubs = utils.load_timeseries('../HCPDataStruct_GSR_WM_LR.mat','wm_ts.npy','data_struct','WM_LR')
+    ts_parcel_rest, restsubs = utils.load_timeseries('../HCPDataStruct_GSR_REST_LR.mat','rest_ts.npy','data_struct','REST_LR')
+
+
+    # Event subs
+    # Find possible working memory spreadsheets
+
+    taskeventsubs=np.load('../subswithsameWMstructure.npy')
+    taskeventsubs=[t.replace('sub','') for t in taskeventsubs]
+    
+    # Filter subs based on whats common to both modalities
+    subs_combo=list(sorted(set(restsubs).intersection(set(wmsubs)).intersection(set(taskeventsubs))))
+
+
+    pmat_all=pd.read_csv('/home/dmo39/pmat.csv')
+    pmat_filter=pmat_all[pmat_all.Subject.isin(subs_combo)]
+    pmat_filter_nan=pmat_filter[~pmat_filter.PMAT24_A_CR.isna()]
+    pmats=pmat_filter_nan.PMAT24_A_CR.values.astype(int)
+    subs_combo_pmat=list(pmat_filter_nan.Subject.values.astype(str))
+
+    np.save(opname,subs_combo_pmat)
+
+    return subs_combo_pmat
+
+def produce_pheno():
+    
+    ## Accuracy and Response Time
+    accdf=pd.read_csv('/data15/mri_group/dave_data/dcpm/AccuracyByTP.csv',index_col=0)
+    RTdf=pd.read_csv('/data15/mri_group/dave_data/dcpm/ResponseTimeByTP.csv',index_col=0)
+    RTdf[RTdf == 0] = 2000
+    RTdf[accdf == 0] = 2000
+    RTdf.columns=list(map(lambda x: x.replace('sub',''),RTdf.columns))
+    RTdf.to_csv('/data15/mri_group/dave_data/dcpm/RT_inputtoCPM.csv')
+
+    pmat_old=pd.read_csv('/home/dmo39/pmat.csv')
+    newdata=np.tile(np.expand_dims(pmat_old.PMAT24_A_CR.values,axis=1),405)
+    pmat_new=pd.DataFrame(newdata.T,columns=pmat_old.Subject)
+    pmat_new.to_csv('/data15/mri_group/dave_data/dcpm/PMATs_inputtoCPM.csv')
+
+
+    #pmat_all=pd.read_csv('/home/dmo39/pmat.csv')
+    #pmat_filter=pmat_all[pmat_all.Subject.isin(subs_combo_pmat)]
+    #pmats=pmat_filter.PMAT24_A_CR.values.astype(int)
+
 
