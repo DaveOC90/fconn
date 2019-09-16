@@ -19,7 +19,8 @@ import sklearn.datasets
 from sklearn.decomposition import PCA
 import statsmodels.formula.api as sm
 from scipy.spatial import ConvexHull
-
+import scipy as sp
+import pdb
 #### Dynamic Estimates ####
 
 def return_sliding_windows(ipdata,window_size=30):
@@ -170,25 +171,72 @@ def indv_leida_mats(onesubdata,numeigs=1):
 
     return opdict
 
+def return_leading_evecs(onesubdata,numeigs=1):
+
+    filtered_data=tsfilt(onesubdata)
+
+    cos_sim_data=cosine_similarity(filtered_data)
+
+    opdict=calc_eigs(cos_sim_data,numevals=numeigs)
+
+    evecs=np.squeeze(opdict['EigVecs'])
+
+    return evecs
 
 def meanphase_dump(args):
 
-    ts_parcel,opdir,windowtps,subid=args
+    ts_parcel,opdir,windowtps,window_anchor,subid,tplist=args
+
+    wa_options=['start','middle','end']
+    if window_anchor not in wa_options:
+        raise Exception('Window anchor must be specified as one of: ', wa_options)
+    elif window_anchor == 'middle' and not windowtps % 2:
+        raise Exception('You specified an even window length, but to anchor the window at the middle timepoint, unsure how to proceed')
+
+
 
     ntps=ts_parcel.shape[0]
     phasecon=cosine_similarity(ts_parcel)
     fpaths=[]
 
 
-    for tp in range(0,ntps-windowtps+1):
-        opfname='indvphasecon_tp_'+str(tp).zfill(3)+'_sub_'+subid+'.pkl'
+    if not tplist:
+        beginshift_dct={
+        'start':0,
+        'middle':np.ceil(windowtps/2).astype(int)-1,
+        'end':windowtps-1}
+
+        endshift_dct={
+        'start':windowtps-1,
+        'middle':np.ceil(windowtps/2).astype(int)-1,
+        'end':0}
+
+
+        beginshift=beginshift_dct[window_anchor]
+        endshift=endshift_dct[window_anchor]
+        tplist=range(0+beginshift,ntps-endshift)
+
+    
+    for tp in tplist:
+
+        opfname='indvphasecon_tp_'+str(tp).zfill(3)+'_'+window_anchor+'_numtps_'+str(windowtps).zfill(3)+'_sub_'+subid+'.pkl'
         opfpath=os.path.join(opdir,opfname)
         fpaths.append(opfpath)
-        mean_window_phasecon=np.mean(phasecon[tp:tp+windowtps,:,:],axis=0)
-        tp_phasecon=np.expand_dims(mean_window_phasecon,0)
-        pickle.dump(tp_phasecon,open(opfpath,'wb'))
+        if os.path.isfile(opfpath):
+            print('Final data already exists: ',opfpath)
+        else:
+            if window_anchor == 'start':
+                mean_window_phasecon=np.mean(phasecon[tp:(tp+windowtps),:,:],axis=0)
+            elif window_anchor == 'middle':
+                winstart=tp-round((windowtps+.5)/2)
+                winend=tp+round((windowtps+.5)/2)
+                mean_window_phasecon=np.mean(phasecon[winstart:(winend-1),:,:],axis=0)
+            elif window_anchor == 'end':
+                mean_window_phasecon=np.mean(phasecon[(tp-windowtps+1):(tp+1),:,:],axis=0)
 
-    print('Final data written to: ',opfpath)
+            tp_phasecon=np.expand_dims(mean_window_phasecon,0)
+            pickle.dump(tp_phasecon,open(opfpath,'wb'))
+            print('Final data written to: ',opfpath)
 
     return fpaths
 
@@ -196,21 +244,44 @@ def gather_meanphase(args):
     ippaths,oppath=args
     numfs=len(ippaths)
 
-    if numfs == 1:
-        fpath=ippaths[0]
-        av_pc=pickle.load(open(fpath,'rb'))
-        os.remove(fpath)
 
-
-    else:
-        gather_mats=[pickle.load(open(ipf,'rb')) for ipf in ippaths]
-        av_pc=np.stack(gather_mats).squeeze()
+    if os.path.isfile(oppath):
+        print('Already exists:', oppath)
         for ipf in ippaths:
             os.remove(ipf)
+    
+    else:
+        if numfs == 1:
+            fpath=ippaths[0]
+            av_pc=pickle.load(open(fpath,'rb'))
+            os.remove(fpath)
 
-    pickle.dump(av_pc,open(oppath,'wb'))
 
-    print('Wrote to:', oppath)
+        else:
+            gather_mats=[pickle.load(open(ipf,'rb')) for ipf in ippaths]
+            av_pc=np.stack(gather_mats).squeeze()
+            for ipf in ippaths:
+                os.remove(ipf)
+
+        pickle.dump(av_pc,open(oppath,'wb'))
+  
+        print('Wrote to:', oppath)
+
+    return oppath
+
+def calcLeadingEig_dump(args):
+    ippath,oppath=args
+    
+    av_pc=pickle.load(open(ippath,'rb'))
+    os.remove(ippath)
+
+    opdict=calc_eigs(av_pc,numevals=1)
+
+    evecs=np.squeeze(opdict['EigVecs'])
+     
+    pickle.dump(evecs,open(oppath,'wb'))
+
+    print('Wrote evecs to:', oppath)
 
     return oppath
 
