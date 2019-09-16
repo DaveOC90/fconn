@@ -4,6 +4,9 @@ import os, sys
 import glob
 from functools import reduce
 import pickle
+import argparse
+import pdb
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -47,756 +50,283 @@ import cpm
 from multiprocessing.dummy import Pool as ThreadPool
 from multiprocessing import Pool
 
-def generate_tsne_plots_multiple_measures():    
-
-    # Load and reshape GSR corrected resting state leading eigenvectors
-    print("Loading Data")
-    rest_dct=utils.load_mat_v73('HCPDataStruct_GSR_REST_LR_LE.mat')
-    rest_le=rest_dct['Leading_Eig'].value.T
-    rest_le=np.reshape(rest_le,[865,1200,268])
-
-    # Load and reshape GSR corrected working memory leading eigenvectors
-    wm_dct = utils.load_mat_v73('HCPDataStruct_GSR_WM_LR_LE.mat')
-    wm_le=wm_dct['Leading_Eig'].value.T
-    wm_le=np.reshape(wm_le,[858,405,268])
-
-    # Load GSR corrected working memory time series
-    print("Generating static corr mats")
-    ts_parcel_wm=utils.load_mat_v73('HCPDataStruct_GSR_WM_LR.mat')
-    x=ts_parcel_wm['data_struct']['WM_LR']
-    ## create dictionary of static correlation matrices
-    wm_dct={s[0]:np.corrcoef(s[1].value.T) for s in x.items()}
-    ## Record subject ids
-    wmsubs=wm_dct.keys()
-    ## Create one matrix with data
-    wm_sc=np.stack([wm_dct[k] for k in wm_dct.keys()],axis=2)
-    wm_sc=np.transpose(wm_sc,[2,0,1])
-    
-    # Load GSR corrected resting state time series
-    ts_parcel_rest=utils.load_mat_v73('HCPDataStruct_GSR_REST_LR.mat')
-    x=ts_parcel_rest['data_struct']['REST_LR']
-    ## create dictionary of static correlation matrices
-    rest_dct={s[0]:np.corrcoef(s[1].value.T) for s in x.items()}
-    ## Record subject ids
-    restsubs=rest_dct.keys()
-    ## Create one matrix with data
-    rest_sc=np.stack([rest_dct[k] for k in rest_dct.keys()],axis=2)
-    rest_sc=np.transpose(rest_sc,[2,0,1])
-    
-    
-    # Filter subs based on whats common to both modalities
-    subs_combo=list(sorted(set(restsubs).intersection(set(wmsubs))))
-    rest_mask=np.array([1 if rs in subs_combo else 0 for rs in restsubs],dtype='bool')
-    wm_mask=np.array([1 if wms in subs_combo else 0 for wms in wmsubs],dtype='bool')
-
-    # Apply to matrices
-    rest_le=rest_le[rest_mask,:,:]
-    wm_le=wm_le[wm_mask,:,:]
-    rest_sc=rest_sc[rest_mask,:,:]
-    wm_sc=wm_sc[wm_mask,:,:]
-    
-    # Take first fifty subjects
-    rest_le=rest_le[:100,:,:]
-    wm_le=wm_le[:100,:,:]
-    rest_sc=rest_sc[:100,:,:]
-    wm_sc=wm_sc[:100,:,:]
-
-    # Delete some stuff to reduce memory used
-    del rest_dct
-    del wm_dct
-
-    # Setup some lists to gather some stuff during processing
-    data_gather=[]
-    data_withevs_gather=[]
-    df_gather=[]
-
-
-    # Iterate over subjects
-    for nsub in range(0,100):
-
-        # Assign sub id
-        subname=subs_combo[nsub].replace('sub','')
-        # Find possible working memory spreadsheets
-        fpaths=glob.glob(f'HCP-WM-LR-EPrime/{subname}/{subname}_3T_WM_run*_TAB_filtered.csv')
-
-        if fpaths:
-
-            # Theres only one file we want
-            fpath=fpaths[0]
-            # Load working memory event df 
-            csv_opname=f'pca_dfs/dimred_events_{subname}_pcatsne.csv'
-
-            # Calculate first EV of static mats and aggregate all LEs across one subject
-            wm_sc_le=np.vstack(np.squeeze(calc_eigs(wm_sc[nsub,:,:],numevals=1)['EigVecs'])).T
-            rest_sc_le=np.vstack(np.squeeze(calc_eigs(rest_sc[nsub,:,:],numevals=1)['EigVecs'])).T
-            wm_rest_concat=np.concatenate([wm_le[nsub,:,:],wm_sc_le,rest_le[nsub,:,:],rest_sc_le])
-            # This gathers all data, including that without event DF
-            data_gather.append(wm_rest_concat)
-
-            if not os.path.isfile(csv_opname):
-
-                print(f"processing {subname}")
-
-                # Caculate PCA
-                pca_comps=data_reduction.return_pca_comps(wm_rest_concat.T,n_components=3)
-                pca_df=pd.DataFrame(pca_comps.T,columns=['x','y','z'])
-
-                # Setup input to TSNE
-                iplist=[{'data':wm_rest_concat,'perplexity':str(i)} for i in range(10,60,20)]
-
-                PCAinit = pca_comps.T[:,:2]/np.std(pca_comps.T[:,0])*.0001
-
-                iplist.append({'data':wm_rest_concat,'perplexity':'30','initialization':PCAinit})
-
-                # TSNE path to save unique runs
-                tsne_dir=os.path.join('tsne_runs',subname)
-                if not os.path.isdir(tsne_dir):
-                    os.makedirs(tsne_dir)
-
-                # Run fast TSNE
-                tsne_dict_run=data_reduction.run_multiple_fast_tsne(iplist,write_res=True,write_dir=tsne_dir)
-
-                # Embed key names in column headers and produce tsne df
-                #tsne_dict={k:pd.DataFrame(tsne_dict_run[k].values,columns=list(map(lambda x : k+'_'+x,tsne_dict_run[k].columns))) for k in tsne_dict_run.keys()} 
-                #tsne_df_merged = reduce(lambda  left,right: pd.merge(left,right,left_index=True,right_index=True,how='outer'),list(tsne_dict.values()))
-                
-                # Convert TSNE results to DF and reorganize columns
-                tsne_df_merged=pd.concat(tsne_dict_run)
-                tsne_df_merged=tsne_df_merged.reset_index().drop('level_1',axis=1)
-                tsne_df_merged=tsne_df_merged.rename({'level_0':'tsneargs'},axis=1)
-
-                num_tsne=len(tsne_dict_run)
-                num_dim_red=num_tsne+1
-
-                # Data Type Label assignment
-                num_lbls=[1 for i in range(0,405)]+[2] \
-                +[3 for i in range(0,1200)]+[4]
-                word_lbls=['wm_le' for i in range(0,405)]+['wm_sc'] \
-                +['rest_le' for i in range(0,1200)]+['rest_sc']
-
-                # Concatenate both PCA and TSNE
-                #dim_red_df=pd.merge(pca_df,tsne_df_merged,left_index=True,right_index=True,how='outer')
-                dim_red_df=pd.concat([pca_df,tsne_df_merged],sort=False)
-
-                # Apply some labels to DF
-                dim_red_df['Type']=word_lbls*num_dim_red
-                dim_red_df['VolumeAssignment']=np.concatenate([np.arange(1,1608)]*num_dim_red)
-                dim_red_df['subid']=np.repeat(subname,1607*num_dim_red)
-                dim_red_df['method']=np.repeat(['pca']+['tsne']*num_tsne,1607)
-
-                # Read event df
-                event_df=pd.read_csv(fpath,index_col=0)
-
-                # Merge event df and dimensionality reduction data
-                dimred_event_df=pd.merge(dim_red_df,event_df,on='VolumeAssignment',how='outer')
-                # Sort DF
-                dimred_event_df=dimred_event_df.sort_values(['method','tsneargs','VolumeAssignment'],axis=0)
-                dimred_event_df=dimred_event_df.reset_index(drop=True)
-                # Write DF
-                dimred_event_df.to_csv(csv_opname)
-
-
-            else:
-                # If DF exists skip processing and read
-                print(f"{subname} already processed, loading file {csv_opname}")
-                dimred_event_df=pd.read_csv(csv_opname,index_col=0)
-
-            # Gather
-            df_gather.append(dimred_event_df)
-
-            data_withevs_gather.append(wm_rest_concat)
-        else:
-            print('No EVs!!!!')
-
-
-
-    word_lbls=['wm_le' for i in range(0,405)]+['wm_sc'] \
-    +['rest_le' for i in range(0,1200)]+['rest_sc']
-
-
-    
-    # Aggregate all the DFs
-    bigdf=pd.concat(df_gather)
-    #rest_wm_agg=np.concatenate(data_gather)
-    bigdf['subid']=bigdf.subid.astype('str')
-
-    # Aggregate all LEs with event data
-    rest_wm_agg_wevs=np.concatenate(data_withevs_gather)
-
-    # PCA of all
-    
-    pca_comps=data_reduction.return_pca_comps(rest_wm_agg_wevs.T,n_components=3)
-    big_pca_df=pd.DataFrame(pca_comps.T,columns=['x','y','z'])
-    x,y=big_pca_df.shape
-    big_pca_df['VolumeAssignment']=np.reshape(np.repeat(np.vstack(np.arange(1,1608)),59,axis=1).T,[1607*59,1])
-    big_pca_df['method']=np.repeat('pca_59subs',x)
-    # Apply some labels to DF
-    big_pca_df['Type']=word_lbls*59
-    big_pca_df['VolumeAssignment']=np.concatenate([np.arange(1,1608)]*59)
-    big_pca_df['subid']=np.repeat(bigdf.subid.unique(),1607)
-
-
-
-
-    # Setup input to TSNE
-    iplist=[{'data':rest_wm_agg_wevs,'perplexity':str(i)} for i in range(10,60,20)]
-
-    iplist=[{'data':rest_wm_agg_wevs,'perplexity':'30','initialization':pca_comps_2.T}]
-
-
-    # TSNE path to save unique runs
-    tsne_dir=os.path.join('tsne_runs','59subs')
-    if not os.path.isdir(tsne_dir):
-        os.makedirs(tsne_dir)
-
-    # TSNE of All
-    #fast_tsne_LE_33=data_reduction.run_multiple_fast_tsne(iplist,write_res=True,write_dir=tsne_dir)
-    fast_tsne_LE_59=data_reduction.run_multiple_fast_tsne(iplist,write_res=True,write_dir=tsne_dir)
-
-    num_tsne=len(fast_tsne_LE_59)
-
-    # Create tsne DF
-    big_tsne_df_merged=pd.concat(fast_tsne_LE_59)
-    big_tsne_df_merged=big_tsne_df_merged.reset_index().drop('level_1',axis=1)
-    big_tsne_df_merged=big_tsne_df_merged.rename({'level_0':'tsneargs'},axis=1)
-
-
-    x,y=big_tsne_df_merged.shape
-    # Apply some labels to DF
-    big_tsne_df_merged['VolumeAssignment']=np.reshape(np.repeat(np.vstack(np.arange(1,1608)),59*num_tsne,axis=1).T,[1607*59*num_tsne,1])
-    big_tsne_df_merged['method']=np.repeat('tsne_59subs',x)
-    big_tsne_df_merged['Type']=word_lbls*59*num_tsne
-    big_tsne_df_merged['VolumeAssignment']=np.concatenate([np.arange(1,1608)]*59*num_tsne)
-    big_tsne_df_merged['subid']=np.concatenate([np.repeat(bigdf.subid.unique(),1607)]*num_tsne)
-
-
-    #print("Running HDBSCAN")
-    #clus_sol=cluster.run_hdbscan(data_subset.T)
-
-
-    subs=bigdf.subid.unique()
-    # Merge big event df with dim red dfs
-    fs=glob.glob('HCP-WM-LR-EPrime/*/*.csv')
-    fs_filtered=[f for f in fs if any(str(x) in f for x in subs)]
-    dfs=[pd.read_csv(ff,index_col=0) for ff in fs_filtered]
-    big_ev_df=pd.concat(dfs)
-    big_ev_df['subid']=np.repeat(subs,176)
-
-
-    # Add Event data to dim red
-    pca_ev_df=pd.merge(big_pca_df,big_ev_df,on=['VolumeAssignment','subid'],how='outer')
-    tsne_ev_df=pd.merge(big_tsne_df_merged,big_ev_df,on=['VolumeAssignment','subid'],how='outer')
-
-    # tsne_dict={k:pd.DataFrame(fast_tsne_LE_33[k].values,
-    #     columns=list(map(lambda x : 'allsubs_'+k+'_'+x,fast_tsne_LE_33[k].columns))) \
-    #      for k in fast_tsne_LE_33.keys()} 
-    # tsne_df = reduce(lambda  left,right: pd.merge(left,right,
-    #     left_index=True,right_index=True,how='outer'),list(tsne_dict.values()))
-
-    # Merging all dfs
-    #big_pca_df[['x','y','z']]=bigdf[['x','y','z']].drop_duplicates().reset_index().drop('index',axis=1)
-    #tsne_df[['x','y','z']]=bigdf[['x','y','z']].drop_duplicates().reset_index().drop('index',axis=1)
-
-
-    #big_pca_evdf=pd.merge(big_pca_df,bigdf,on=['x','y','z'],how='outer')
-
-    #big_pca_tsne_evdf=pd.merge(big_pca_evdf,tsne_df,on=['x','y','z'],how='outer')
-
-    big_pca_tsne_evdf=pd.concat([pca_ev_df,bigdf,tsne_ev_df],sort=False)
-    big_pca_tsne_evdf['combo']=big_pca_tsne_evdf.method+'_'+big_pca_tsne_evdf.tsneargs.astype('str')
-
-
-    #clus=run_hdbscan(rest_wm_agg_wevs)
-    # Stupid work around for colors
-    # cmaps=['red']*405+['blue']+['green']*1200+['orange']
-    # big_pca_df['color']=np.reshape(np.repeat(np.vstack(cmaps),33,axis=1).T,[1607*33,1])
-
-    # sizes=[5]*405+[40]+[5]*1200+[40]
-    # big_pca_df['sizes']=np.reshape(np.repeat(np.vstack(sizes),33,axis=1).T,[1607*33,1])
-
-    
-    
-    #for i in range(1,34):
-    for sub in subs:
-        # fig, (ax1, ax2, ax3) = plt.subplots(ncols=3)
-        # cmap=big_pca_tsne_evdf[big_pca_tsne_evdf.subnum == i]['color']
-        # sizes=big_pca_tsne_evdf[big_pca_tsne_evdf.subnum == i]['sizes']
-        # scatter_dict={'alpha':0.4,'facecolors':cmap,'edgecolors':'face','s':sizes}
-        # sns.regplot(data=big_pca_tsne_evdf[big_pca_tsne_evdf.subnum == i],x='allsubs_perplex_10_x',y='allsubs_perplex_10_y',scatter_kws=scatter_dict,ax=ax1,scatter=True,fit_reg=False)
-        # sns.regplot(data=big_pca_tsne_evdf[big_pca_tsne_evdf.subnum == i],x='allsubs_perplex_30_x',y='allsubs_perplex_30_y',scatter_kws=scatter_dict,ax=ax2,scatter=True,fit_reg=False)
-        # sns.regplot(data=big_pca_tsne_evdf[big_pca_tsne_evdf.subnum == i],x='allsubs_perplex_50_x',y='allsubs_perplex_50_y',scatter_kws=scatter_dict,ax=ax3,scatter=True,fit_reg=False)
-        subdf=big_pca_tsne_evdf[big_pca_tsne_evdf.subid == sub]
-        cmap = sns.diverging_palette(220, 10, as_cmap=True)
-
-        #for hue in ['VolumeAssignment']:
-        for hue in ['Type','BlockType','ACC']:
-            print(hue)
-
-            plt_opname='subs_66_plots/'+sub+'_dimred_'+hue+'_withpcatsne.png'
-
-            if not os.path.isfile(plt_opname):
-
-                plt.clf()
-
-                sns.lmplot(data=subdf,x='x',y='y',col='combo',col_wrap=3, fit_reg=False,
-                    sharex=False,sharey=False,hue=hue,scatter_kws={'alpha':0.3},
-                    legend=False)
-                
-                plt.tight_layout()
-                mng = plt.get_current_fig_manager()
-                mng.resize(*mng.window.maxsize())
-                #plt.show()
-                plt.savefig(plt_opname)
-                plt.close()
-            else:
-                pass
-
-def phase_based_tsne():
-    
-    # Load GSR corrected working memory time series
-    print("Generating static corr mats")
-    if not os.path.isfile('wm_ts.npy'):
-        ts_parcel_wm=utils.loadmatv73_tree('../HCPDataStruct_GSR_WM_LR.mat')
-        ts_parcel_wm=ts_parcel_wm['data_struct']['WM_LR']
-        np.save('wm_ts.npy',ts_parcel_wm)
-    else:
-        ts_parcel_wm=np.load('wm_ts.npy').item()
-    wmsubs=[k.replace('sub','') for k in ts_parcel_wm.keys()]
-
-
-    ## create dictionary of static correlation matrices
-    wm_sc={k:np.corrcoef(ts_parcel_wm[k].T) for k in ts_parcel_wm.keys()}
-    ## Create one matrix with data
-    wm_sc=np.stack([wm_sc[k] for k in wm_sc.keys()],axis=2)
-    wm_sc=np.transpose(wm_sc,[2,0,1])
-
-    # Calculate phase of ts    
-    wm_angles=[np.angle(sg.hilbert(ts_parcel_wm[k],axis=0)) for k in ts_parcel_wm.keys()]
-    wm_angles=np.stack(wm_angles)
-    wm_mean_angles=np.mean(wm_angles,axis=1)
-
-
-    # Load GSR corrected resting state time series
-    if not os.path.isfile('rest_ts.npy'):
-        ts_parcel_rest=utils.loadmatv73_tree('../HCPDataStruct_GSR_REST_LR.mat')
-        ts_parcel_rest=ts_parcel_rest['data_struct']['REST_LR']
-        np.save('rest_ts.npy',ts_parcel_rest)
-    else:
-        ts_parcel_rest=np.load('rest_ts.npy').item()
-
-    restsubs=[k.replace('sub','') for k in ts_parcel_rest.keys()]
-    
-    ## create dictionary of static correlation matrices
-    rest_sc={k:np.corrcoef(ts_parcel_rest[k].T) for k in ts_parcel_rest.keys()}
-    ## Create one matrix with data
-    rest_sc=np.stack([rest_sc[k] for k in rest_sc.keys()],axis=2)
-    rest_sc=np.transpose(rest_sc,[2,0,1])
-
-
-    ## create dictionary of mean phase connectivity matrices
-    rest_phasecon={k:np.mean(cosine_similarity(ts_parcel_rest[k])) for k in ts_parcel_rest.keys()}
-    ## Create one matrix with data
-    #rest_sc=np.stack([rest_sc[k] for k in rest_sc.keys()],axis=2)
-    #rest_sc=np.transpose(rest_sc,[2,0,1])
-
-
-
-    # Calculate phase of ts
-    rest_angles=[np.angle(sg.hilbert(ts_parcel_rest[k],axis=0)) for k in ts_parcel_rest.keys()]
-    rest_angles=np.stack(rest_angles)
-    rest_mean_angles=np.mean(rest_angles,axis=1)
-
-
-    # Event subs
-    # Find possible working memory spreadsheets
-    fpaths=glob.glob(f'../HCP-WM-LR-EPrime/*/*_3T_WM_run*_TAB_filtered.csv')
-    eventsubs=[f.split('/')[2] for f in fpaths]
-    
-    # Filter subs based on whats common to both modalities
-    subs_combo=list(sorted(set(restsubs).intersection(set(wmsubs)).intersection(set(eventsubs))))
-    
-
-    rest_mask=np.array([1 if rs in subs_combo else 0 for rs in restsubs],dtype='bool')
-    wm_mask=np.array([1 if wms in subs_combo else 0 for wms in wmsubs],dtype='bool')
-
-    # Mask arrays
-    rest_mean_angles=rest_mean_angles[rest_mask,:]
-    wm_mean_angles=wm_mean_angles[wm_mask,:]
-    rest_angles=rest_angles[rest_mask,:,:]
-    wm_angles=wm_angles[wm_mask,:,:]
-    rest_sc=rest_sc[rest_mask,:,:]
-    wm_sc=wm_sc[wm_mask,:,:]
-    # Delete some stuff to reduce memory used
-    del ts_parcel_rest
-    del ts_parcel_wm
-
-
-    # Setup some lists to gather some stuff during processing
-    data_gather=[]
-    data_withevs_gather=[]
-    df_gather=[]
-
-
-    dynamic_measure = 'angles'
-
-    # Iterate over subjects
-    for nsub in range(0,47):
-
-
-
-        # Assign sub id
-        subname=subs_combo[nsub]
-
-        csv_opname=f'../phase_stuff/dimred_events_{subname}_pcatsne.csv'
-        fpath=glob.glob(f'../HCP-WM-LR-EPrime/{subname}/{subname}_3T_WM_run*_TAB_filtered.csv')[0]
-
-        # Create one phase array per sub
-        wm_mang=np.vstack(np.squeeze(wm_mean_angles[nsub,:])).T
-        rest_mang=np.vstack(np.squeeze(rest_mean_angles[nsub,:])).T
-        wm_rest_concat=np.concatenate([wm_angles[nsub,:,:],wm_mang,rest_angles[nsub,:,:],rest_mang])
-
-
-
-        if not os.path.isfile(csv_opname):
-            print(f"processing {subname}")
-
-            # Caculate PCA
-            pca_comps=data_reduction.return_pca_comps(wm_rest_concat.T,n_components=3)
-            pca_df=pd.DataFrame(pca_comps.T,columns=['x','y','z'])
-
-            # Setup input to TSNE
-            iplist=[{'data':wm_rest_concat,'perplexity':str(i)} for i in range(10,60,20)]
-
-            PCAinit = pca_comps.T[:,:2]/np.std(pca_comps.T[:,0])*.0001
-
-            iplist.append({'data':wm_rest_concat,'perplexity':'30','initialization':PCAinit})
-
-            # TSNE path to save unique runs
-            tsne_dir=os.path.join('../phase_stuff/tsne_runs',subname)
-            if not os.path.isdir(tsne_dir):
-                os.makedirs(tsne_dir)
-
-            # Run fast TSNE
-            tsne_dict_run=data_reduction.run_multiple_fast_tsne(iplist,write_res=True,write_dir=tsne_dir)
-
-            # Convert TSNE results to DF and reorganize columns
-            tsne_df_merged=pd.concat(tsne_dict_run)
-            tsne_df_merged=tsne_df_merged.reset_index().drop('level_1',axis=1)
-            tsne_df_merged=tsne_df_merged.rename({'level_0':'tsneargs'},axis=1)
-
-            num_tsne=len(tsne_dict_run)
-            num_dim_red=num_tsne+1
-
-            # Data Type Label assignment
-            num_lbls=[1 for i in range(0,405)]+[2] \
-            +[3 for i in range(0,1200)]+[4]
-            word_lbls=['wm_le' for i in range(0,405)]+['wm_sc'] \
-            +['rest_le' for i in range(0,1200)]+['rest_sc']
-
-            # Concatenate both PCA and TSNE
-            #dim_red_df=pd.merge(pca_df,tsne_df_merged,left_index=True,right_index=True,how='outer')
-            dim_red_df=pd.concat([pca_df,tsne_df_merged],sort=False)
-
-            # Apply some labels to DF
-            dim_red_df['Type']=word_lbls*num_dim_red
-            dim_red_df['VolumeAssignment']=np.concatenate([np.arange(1,1608)]*num_dim_red)
-            dim_red_df['subid']=np.repeat(subname,1607*num_dim_red)
-            dim_red_df['method']=np.repeat(['pca']+['tsne']*num_tsne,1607)
-
-            # Read event df
-            event_df=pd.read_csv(fpath,index_col=0)
-
-            # Merge event df and dimensionality reduction data
-            dimred_event_df=pd.merge(dim_red_df,event_df,on='VolumeAssignment',how='outer')
-            # Sort DF
-            dimred_event_df=dimred_event_df.sort_values(['method','tsneargs','VolumeAssignment'],axis=0)
-            dimred_event_df=dimred_event_df.reset_index(drop=True)
-            # Write DF
-            dimred_event_df.to_csv(csv_opname)
-
-
-        else:
-            # If DF exists skip processing and read
-            print(f"{subname} already processed, loading file {csv_opname}")
-            dimred_event_df=pd.read_csv(csv_opname,index_col=0)
-
-        # Gather
-        df_gather.append(dimred_event_df)
-
-        data_withevs_gather.append(wm_rest_concat)
-
-
-    word_lbls=['wm_phase' for i in range(0,405)]+['wm_phase_mean'] \
-    +['rest_phase' for i in range(0,1200)]+['rest_phase_mean']
-
-
-    
-    # Aggregate all the DFs
-    bigdf=pd.concat(df_gather)
-    numsubs=len(df_gather)
-    #rest_wm_agg=np.concatenate(data_gather)
-    bigdf['subid']=bigdf.subid.astype('str')
-
-    # Aggregate all LEs with event data
-    rest_wm_agg_wevs=np.concatenate(data_withevs_gather)
-
-    # PCA of all
-    
-    pca_comps=data_reduction.return_pca_comps(rest_wm_agg_wevs.T,n_components=3)
-    big_pca_df=pd.DataFrame(pca_comps.T,columns=['x','y','z'])
-    x,y=big_pca_df.shape
-    big_pca_df['VolumeAssignment']=np.reshape(np.repeat(np.vstack(np.arange(1,1608)),numsubs,axis=1).T,[1607*numsubs,1])
-    big_pca_df['method']=np.repeat(f'pca_{numsubs}subs',x)
-    # Apply some labels to DF
-    big_pca_df['Type']=word_lbls*numsubs
-    big_pca_df['VolumeAssignment']=np.concatenate([np.arange(1,1608)]*numsubs)
-    big_pca_df['subid']=np.repeat(bigdf.subid.unique(),1607)
-
-
-
-    # Setup input to TSNE
-    #iplist=[{'data':rest_wm_agg_wevs,'perplexity':str(i)} for i in range(10,60,20)]
-
-    iplist=[{'data':rest_wm_agg_wevs,'perplexity':'30','initialization':pca_comps[:2,:].T}]
-
-
-    # TSNE path to save unique runs
-    tsne_dir=os.path.join('phase_stuff','tsne_runs',f'{numsubs}subs')
-    if not os.path.isdir(tsne_dir):
-        os.makedirs(tsne_dir)
-
-    # TSNE of All
-    #fast_tsne_LE_33=run_multiple_fast_tsne(iplist,write_res=True,write_dir=tsne_dir)
-    fast_tsne_group=data_reduction.run_multiple_fast_tsne(iplist,write_res=True,write_dir=tsne_dir)
-
-    num_tsne=len(fast_tsne_group)
-
-    # Create tsne DF
-    big_tsne_df_merged=pd.concat(fast_tsne_group)
-    big_tsne_df_merged=big_tsne_df_merged.reset_index().drop('level_1',axis=1)
-    big_tsne_df_merged=big_tsne_df_merged.rename({'level_0':'tsneargs'},axis=1)
-
-
-    x,y=big_tsne_df_merged.shape
-    # Apply some labels to DF
-    big_tsne_df_merged['VolumeAssignment']=np.reshape(np.repeat(np.vstack(np.arange(1,1608)),numsubs*num_tsne,axis=1).T,[1607*numsubs*num_tsne,1])
-    big_tsne_df_merged['method']=np.repeat(f'tsne_{numsubs}subs',x)
-    big_tsne_df_merged['Type']=word_lbls*numsubs*num_tsne
-    big_tsne_df_merged['VolumeAssignment']=np.concatenate([np.arange(1,1608)]*numsubs*num_tsne)
-    big_tsne_df_merged['subid']=np.concatenate([np.repeat(bigdf.subid.unique(),1607)]*num_tsne)
-
-
-    #print("Running HDBSCAN")
-    #clus_sol=cluster.run_hdbscan(data_subset.T)
-
-
-    subs=bigdf.subid.unique()
-    # Merge big event df with dim red dfs
-    fs=glob.glob('../HCP-WM-LR-EPrime/*/*.csv')
-    fs_filtered=[f for f in fs if any(str(x) in f for x in subs)]
-    dfs=[pd.read_csv(ff,index_col=0) for ff in fs_filtered]
-    big_ev_df=pd.concat(dfs)
-    big_ev_df['subid']=np.repeat(subs,176)
-
-
-    # Add Event data to dim red
-    pca_ev_df=pd.merge(big_pca_df,big_ev_df,on=['VolumeAssignment','subid'],how='outer')
-    tsne_ev_df=pd.merge(big_tsne_df_merged,big_ev_df,on=['VolumeAssignment','subid'],how='outer')
-
-
-    big_pca_tsne_evdf=pd.concat([pca_ev_df,bigdf,tsne_ev_df],sort=False)
-    big_pca_tsne_evdf['combo']=big_pca_tsne_evdf.method+'_'+big_pca_tsne_evdf.tsneargs.astype('str')
-    
-    
-    for sub in subs:
-        subdf=big_pca_tsne_evdf[big_pca_tsne_evdf.subid == sub]
-        cmap = sns.diverging_palette(220, 10, as_cmap=True)
-        pal=sns.color_palette(palette='RdBu')
-
-        #for hue in ['VolumeAssignment']:
-        for hue in ['Type','BlockType','ACC']:
-            print(hue)
-
-            plt_opname='../phase_stuff/subs_47_plots/'+sub+'_dimred_'+hue+'_withpcatsne.png'
-
-            if not os.path.isfile(plt_opname):
-
-                plt.clf()
-
-                sns.lmplot(data=subdf,x='x',y='y',col='combo',col_wrap=3, fit_reg=False,
-                    sharex=False,sharey=False,hue=hue,scatter_kws={'alpha':0.3},
-                    legend=False,palette=pal)
-                
-                plt.tight_layout()
-                mng = plt.get_current_fig_manager()
-                mng.resize(*mng.window.maxsize())
-                #plt.show()
-                plt.savefig(plt_opname)
-                plt.close()
-            else:
-                pass
-
-
-
-
-def compare_staticcon_phasecon(restsubs,wmsubs,eventsubs,ts_parcel_wm,ts_parcel_rest):
-
-    # Event subs
-    # Find possible working memory spreadsheets
-    fpaths=glob.glob(f'../HCP-WM-LR-EPrime/*/*_3T_WM_run*_TAB_filtered.csv')
-    eventsubs=[f.split('/')[2] for f in fpaths]
-    
-    # Filter subs based on whats common to both modalities
-    subs_combo=list(sorted(set(restsubs).intersection(set(wmsubs)).intersection(set(eventsubs))))
-
-
-    wm_phasecon={k:np.mean(dfc.cosine_similarity(ts_parcel_wm['sub'+k]),axis=0) for k in subs_combo}
-    wm_phasecon=np.stack(wm_phasecon)
-
-
-
-    rest_phasecon={k:np.mean(dfc.cosine_similarity(ts_parcel_rest[k])) for k in ts_parcel_rest.keys()}
-    rest_phasecon=np.stack(rest_phasecon)
-
-
-    rest_sc=np.transpose(rest_sc,[2,0,1])
-    
-    ts_parcel_wm={k:ts_parcel_wm[k] for k in subs_combo[:50]}
-    ts_parcel_rest={k:ts_parcel_rest[k] for k in subs_combo[:50]}
-
-
-
-    # Iterate over subjects
-    for nsub in range(0,1):
-        ts_wm=ts_parcel_wm[subs_combo[nsub]]
-        wm_static_corr=np.corrcoef(ts_wm.T).flatten()
-        wm_mean_phase_corr=np.mean(dfc.cosine_similarity(ts_wm),axis=0).flatten()
-        wm_var_phase_corr=np.var(dfc.cosine_similarity(ts_wm),axis=0).flatten()
-        wm_cv_phase_corr=wm_var_phase_corr/wm_mean_phase_corr
-
-        corrs=np.corrcoef([wm_static_corr,wm_mean_phase_corr,wm_var_phase_corr,wm_cv_phase_corr])
-        
-        print('WM:',corrs)
-
-
-
-        ts_rest=ts_parcel_rest[subs_combo[nsub]]
-        rest_static_corr=np.corrcoef(ts_rest.T).flatten()
-        rest_mean_phase_corr=np.mean(dfc.cosine_similarity(ts_rest),axis=0).flatten()
-        rest_var_phase_corr=np.var(dfc.cosine_similarity(ts_rest),axis=0).flatten()
-        rest_cv_phase_corr=rest_var_phase_corr/rest_mean_phase_corr
-
-        corrs=np.corrcoef([rest_static_corr,rest_mean_phase_corr,rest_var_phase_corr,rest_cv_phase_corr])
-        
-        print('Rest:',corrs)
-
-
 
 
 if __name__ == '__main__':
 
 
 
-    # Load GSR corrected working memory time series
-    print("Loading data")
+    ##$ Config  $##
+    
+
+    parser=argparse.ArgumentParser(description='Run split half CV CPM on instantaneous and windowed connectivity matrices')
+    parser.add_argument('timeseries',help="Path to parcellated timeseries to be used to calculate dynamic connectivity")
+    parser.add_argument('prediction_target',help="Path to csv with target predictions, with rows as timepoints and columns as subjects")
+    parser.add_argument('subject_list',help="Path to csv/numpy file")
+    parser.add_argument('nsubs',type=int,help='Number of subs in group pool')
+    parser.add_argument('nsubs_to_run',type=int,help='Number of subs to randomly sample in each CPM run')
+    parser.add_argument('workdir')
+    parser.add_argument('window_lengths',help='For window lengths of 1,2 and 3, pass like so: "1,2,3" ')
+    parser.add_argument('window_anchor',help='Must be start middle or end')
+    parser.add_argument('result_name',help='thing to append to end of resultfile')
+    parser.add_argument('--trim_data',action='store_true',help='Remove time points from end of timeseries')
+    parser.add_argument('--keepvols',type=int,help='Specify number of vols to keep')
+    parser.add_argument('--shuffle',action='store_true')
+    parser.add_argument('--calc_evec',action='store_true')
+    
+    args=parser.parse_args()
+
+    ipfile=args.timeseries
+    prediction_target=args.prediction_target
+    subject_list=args.subject_list
+    nsubs=args.nsubs
+    workdir=args.workdir
+    subs_to_run=args.nsubs_to_run
+    trim_data=args.trim_data
+    shuff=args.shuffle
+    calc_evec=args.calc_evec
+    avtps_list=list(map(int,args.window_lengths.split(',')))
+    window_anchor=args.window_anchor
+    result_name=args.result_name
 
    
-    ts_parcel_wm, wmsubs = utils.load_timeseries('../HCPDataStruct_GSR_WM_LR.mat','wm_ts.npy','data_struct','WM_LR')
-    ts_parcel_rest, restsubs = utils.load_timeseries('../HCPDataStruct_GSR_REST_LR.mat','rest_ts.npy','data_struct','REST_LR')
-
-
-    # Event subs
-    # Find possible working memory spreadsheets
-    fpaths=glob.glob(f'../HCP-WM-LR-EPrime/*/*_3T_WM_run*_TAB_filtered.csv')
-    eventsubs=[f.split('/')[2] for f in fpaths]
     
-    # Filter subs based on whats common to both modalities
-    subs_combo=list(sorted(set(restsubs).intersection(set(wmsubs)).intersection(set(eventsubs))))
+
+    #ipfile='wm_ts.npy'
+    #prediction_target='/data15/mri_group/dave_data/dcpm/RT_inputtoCPM.csv'
+    #subject_list='substouse.npy'
+    #nsubs=10
+    #subs_to_run=10
+    #workdir='/data15/mri_group/dave_data/dcpm/rawDfcPlusModel_gsr_400_400_continuousperf/'
+    #trim_data=False
+    #shuff=False
+    #calc_evec=False
+    #avtps_list=[1,5,10,20,30,60,120,240,300,350,405]
+    #avtps_list=[21]
+    #window_anchor='middle'
+
+    ##$ Config  $##
+
+    ### Establishing paths and options ###
+    if (trim_data) and not (type(args.keepvols) == int):
+        raise Exception('If you want trimvols, must also set number of vols to keep')
+    else:
+        keepvols=args.keepvols
+
+    if not os.path.isdir(workdir):
+        raise Exception('Working directory specified does not exist')
+
+    insta_pc_dir=os.path.join(workdir,'insta_pc')
+    resdir=os.path.join(workdir,'results')
+
+    for fpath in [insta_pc_dir,resdir]:
+        if not os.path.isdir(fpath):
+            os.makedirs(fpath)
 
 
-    pmat_all=pd.read_csv('/home/dmo39/pmat.csv')
-    pmat_filter=pmat_all[pmat_all.Subject.isin(subs_combo)]
-    pmat_filter_nan=pmat_filter[~pmat_filter.PMAT24_A_CR.isna()]
-    pmats=pmat_filter_nan.PMAT24_A_CR.values.astype(int)
-    subs_combo_pmat=list(pmat_filter_nan.Subject.values.astype(str))
+    ### Reading in data, subids and timepoints ###
 
-    #z=np.stack([np.corrcoef(ts_parcel_wm['sub'+s].T) for s in subs_combo_pmat])
+    print("Gathering subject IDs")
 
-
-
-    restnumvols=405
-    ts_parcel_rest={k:ts_parcel_rest[k][:restnumvols,:] for k in ts_parcel_rest}
-
-    nsubs=400
-    #avtps=30
-
-    ## WM Shuffle
-    randwminds=[np.random.permutation(405) for i in range(0,len(ts_parcel_wm))]
-    ts_parcel_wm={k:ts_parcel_wm[k][randwminds[i],:] for i,k in enumerate(ts_parcel_wm)}
-
-    randdict={}
-    randdict['Randinds']=randwminds
-    randdict['wmkeys']=list(ts_parcel_wm.keys())
-    randdict['filteredsubs']=subs_combo_pmat
-    np.save('randinds_subs_wm',randdict)
+    if not os.path.isfile(subject_list):
+        subject_list=utils.produce_sublist(subject_list)
+    else:
+        subject_list=list(np.load(subject_list))
 
 
-    avtps_list=[1,5,10,30,60,120,240,300,350,405]
-    #avtps_list=[30]
+    subject_list=subject_list[:nsubs]
+
+    
+
+    print("Loading data")
+
+    ts_parcel, subs = utils.load_timeseries('',ipfile,'','')
+
+    
+    
+    if not all([s in subs for s in subject_list]):
+        missing=[s for s in subject_list if s not in subs]
+        raise Exception('The following subjects do not have imaging data: '+','.join(missing))
 
 
+
+
+    prediction_target=pd.read_csv(prediction_target,index_col=0)
+    pt_subs=prediction_target.columns
+
+
+
+
+    if not all([s in pt_subs for s in subject_list]):
+        missing=[s for s in pt_subs if s not in subs]
+        raise Exception('The following subjects do not have prediction targets: '+','.join(missing))
+
+
+    # Reduce prediction_target to pertinent subjects
+    prediction_target=prediction_target[subject_list]
+    # Pick out timepoints with no nan values
+    tps_with_RT=prediction_target.dropna().index.values.astype(int)
+    
+    
+
+
+    ## Attempting to have varying subjectlist by timepoint
+    # Pick timepoints with no response
+    mask=(prediction_target != 0) & ~prediction_target.isna()
+    # Apply mask to subject list to create array of varying sublists
+    sublistarr=np.array(subject_list)
+    pred_target_subsbytp=mask.apply(lambda x : sublistarr[x],axis=1).values
+    # Keep subs that are excluded by timepoint
+    subbytp_exclude=mask.apply(lambda x : sublistarr[~x],axis=1).values
+    
+    # Turn prediction target into array
+    prediction_target=prediction_target.values
+
+
+    
+    ### Enacting options if specified ###
+
+    if trim_data:
+        print("Trimming timeseries selected, trimming to ",keepvols," volumes")
+        ts_parcel={k:ts_parcel[k][:keepvols,:] for k in ts_parcel}
+
+    
+    if shuff:
+        print("Shuffling timeseries selected")
+        ## WM Shuffle
+        randinds=[np.random.permutation(405) for i in range(0,len(ts_parcel))]
+        ts_parcel={k:ts_parcel[k][randinds[i],:] for i,k in enumerate(ts_parcel)}
+
+        randdict={}
+        randdict['Randinds']=randinds
+        randdict['keys']=list(ts_parcel.keys())
+        randdict['filteredsubs']=subject_list
+        savepath=os.path.join(resdir,'randinds_subs.npy')
+        np.save(savepath,randdict)
+
+
+
+
+    
+    ### Iterating over window lengths to calculate dFC ###
+    ### and run CPM                                    ###    
+
+    print('Running analysis')
     for avtps in avtps_list:
 
 
-        thread_ips_pcmats=[(ts_parcel_wm['sub'+subs_combo_pmat[j]],'../indv_phase/',avtps,str(j).zfill(3)) for j in range(0,nsubs)]
+        # Figuring out start and end timepoints based on imaging data and 
+        # prediction targets available
+        beginshift_dct={
+        'start':0,
+        'middle':np.ceil(avtps/2).astype(int)-1,
+        'end':avtps-1}
+
+        endshift_dct={
+        'start':avtps-1,
+        'middle':np.ceil(avtps/2).astype(int)-1,
+        'end':0}
+
+        beginshift=beginshift_dct[window_anchor]
+        endshift=endshift_dct[window_anchor]
+
+        # Put in catch so code doesnt try to include tps not in imaging data
+        tps_to_run_image=set(range(0+beginshift,405-endshift))
+        tps_to_run=sorted(list(set.intersection(set(tps_with_RT),tps_to_run_image)))
 
 
-        print('Starting threading avtps: ',avtps)
-
-        with ThreadPool(15) as p:
-            x=p.map(dfc.meanphase_dump,thread_ips_pcmats)
 
 
-        p.join()
 
-        aggfiles=np.stack(x).T
+        # Determine output names of phase connectivity data
+        opnames_gather_meanphase=[os.path.join(insta_pc_dir,'pc_tp_'+str(tp).zfill(3)+'_av'+str(avtps).zfill(3)+'_'+window_anchor+'.pkl') for tp in tps_to_run]
 
-        opnames=['../indv_phase/wmrand_pc_tp_'+str(tp).zfill(3)+'_av'+str(avtps).zfill(3)+'.pkl' for tp in range(0,405-avtps+1)]
 
-        ipfiles=list(zip(aggfiles,opnames))
+
+        # Figure out if phase connectivity also exists
+        ogm_mask=np.array([os.path.isfile(ogm) for ogm in opnames_gather_meanphase])
+
+        if not all(ogm_mask):
+           
+            print('Calculating instantaneous PC \n Starting threading avtps: ',avtps)
+            tps_to_run_arr=np.array(tps_to_run)
+            tps_to_dump=list(tps_to_run_arr[~ogm_mask])
+
+
+            
+            thread_ips_pcmats=[(ts_parcel['sub'+subject_list[j]],insta_pc_dir,avtps,window_anchor,str(j).zfill(3),tps_to_dump) for j in range(0,len(subject_list))] # formerly nsubs
+
+            with ThreadPool(15) as p:
+                x=p.map(dfc.meanphase_dump,thread_ips_pcmats)
+
+
+            p.join()
+
+            aggfiles=np.stack(x).T
+
+            tps_in_aggfiles=list(map(lambda x: x.split('_')[x.split('_').index('tp')+1],aggfiles[:,0]))
+            tps_in_aggfiles=np.array(tps_in_aggfiles).astype(int)
+            include_arr=np.isin(tps_in_aggfiles,tps_to_run)
+            aggfiles_to_delete=aggfiles[~include_arr,:]
+            aggfiles_to_include=aggfiles[include_arr,:]
+
+            for aggdel in aggfiles_to_delete.flatten():
+                 os.remove(aggdel)
+
+            ogm_newlist=list(np.array(opnames_gather_meanphase)[~ogm_mask])
+            ipfiles=list(zip(aggfiles_to_include,ogm_newlist))
+     
+            print("Gathering instantaneous PC into timelocked matrix across subs")
+
+            with ThreadPool(15) as p:
+                cpmfiles=p.map(dfc.gather_meanphase,ipfiles)
     
+            p.join()
 
-        with ThreadPool(15) as p:
-            cpmfiles=p.map(dfc.gather_meanphase,ipfiles)
-    
-        p.join()
+            cpmfiles=opnames_gather_meanphase
 
-        cpm_ipfiles=[(cpmfiles[fnum],pmats,fnum,True) for fnum in range(0,405-avtps+1)]
+        else:
+            cpmfiles=opnames_gather_meanphase
+            print("input matrices already exist")
 
-        with Pool(12) as p:
+
+
+        # Pair down prediction target
+        #pmats=pmats[:nsubs]
+        #prediction_target=prediction_target[:,:nsubs]
+
+
+
+
+        if calc_evec:
+            raise Exception('Not sure things are indexing adequately')
+            evec_ipfiles=[(cpmfiles[fnum],cpmfiles[fnum].replace('.pkl','_evecs.pkl')) for fnum in tps_to_run]
+            with Pool(15) as p:
+                evecfiles=p.map(dfc.calcLeadingEig_dump,evec_ipfiles)
+
+            cpm_ipfiles=[(evecfiles[fnum],prediction_target[fnum,:],fnum,True,subs_to_run) for fnum in tps_to_run]
+            cpm_files=[cpmfiles[fnum].replace('.pkl','_evecs.pkl') for fnum in tps_to_run]
+
+        else:
+
+            cpm_ipfiles=[(cpmfiles[i],prediction_target[fnum,:],fnum,True,subs_to_run,mask.values[fnum,:],subject_list) for i,fnum in enumerate(tps_to_run)]
+
+        print("Running CPM")
+
+
+        
+        
+        with Pool(15) as p:
             Rval_dict=p.map(cpm.run_cpm,cpm_ipfiles)
 
-        for cf in cpmfiles:
-            os.remove(cf)
+        #for cf in cpm_files:
+        #    os.remove(cf)
 
-
-        #Rvals_op=np.stack([r['rvals'] for r in Rval_dict]).squeeze()
         
-        np.save('dCPM_wmrand_'+str(avtps).zfill(3)+'tp_para_edges.npy',Rval_dict)
-
-    #for j in range(0,nsubs):
-    #    print('Sub......',j+1,'out of ',nsubs)
-    #    start=time.time()
-    #    ipdata=np.vstack(ts_parcel_wm['sub'+subs_combo[j]]
-    #    dfc.meanphase_dump(ipdata,opdir='../indv_phase/',windowtps=300,str(j).zfill(3))
+        opfile_name='dCPM_tps_'+str(avtps).zfill(3)+'_'+window_anchor+'_results_'+result_name+'.npy'
+        oppath=os.path.join(resdir,opfile_name)
+        print("Saving results: ",oppath)
+        np.save(oppath,Rval_dict)
 
 
-    #av_tp=30
-    #for tp in range(0,405-av_tp+1):
-    #    start=time.time()
-    #    print('TP......',tp+1,'out of ',405)
-    #    tp_str=str(tp).zfill(3)
-    #    tp_fs=sorted(glob.glob('../indv_phase/*tp_'+tp_str+'*.pkl'))
-
-    #    tp_list=[]
 
