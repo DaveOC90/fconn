@@ -21,54 +21,84 @@ def read_mats(iplist):
     return ipmats
 
 
-def corr2_coeff(A,B):
-	# from: https://stackoverflow.com/questions/30143417/computing-the-correlation-coefficient-between-two-multi-dimensional-arrays/30143754#30143754
-    # https://stackoverflow.com/questions/45403071/optimized-computation-of-pairwise-correlations-in-python?noredirect=1&lq=1
-    # Rowwise mean of input arrays & subtract from input arrays themeselves
 
-    A_mA = A - A.mean(1)[:,None]
-    B_mB = B - B.mean(1)[:,None]
 
-    # Sum of squares across rows
-    ssA = (A_mA**2).sum(1);
-    ssB = (B_mB**2).sum(1);
-
-    # Finally get corr coeff
-    return np.dot(A_mA,B_mB.T)/np.sqrt(np.dot(ssA[:,None],ssB[None]))
-
-def train_cpm(ipmat,pheno,pthresh=0.01):
+def train_cpm(ipmat,pheno,pthresh=0.01, corrtype = 'pearsonr', confound=False):
 
     """
-    Accepts input matrices and pheno data
+    Accepts input matrices (NRois x Nsubs) and pheno data
     Returns model
     """
-
-    #cc=corr2_coeff(ipmat,pheno)
-
     
     num_pheno=len(pheno)
-    df=num_pheno-2
-
-    Rvals=corr_multi.corr_multi_cy(pheno,ipmat.T)
-    tvals=(Rvals*np.sqrt(df))/np.sqrt(1-Rvals**2)
-    pvals=stats.t.sf(np.abs(tvals),df)*2
-
-   
-    # cc=[stats.pearsonr(pheno,im) for im in ipmat]
-    # Rvals=np.array([c[0] for c in cc])
-    # pvals=np.array([c[1] for c in cc])
-    #rmat=np.reshape(Rvals,[268,268])
-    #pmat=np.reshape(pvals,[268,268])
     
-    posedges=(Rvals > 0) & (pvals < pthresh)
-    posedges=posedges.astype(int)
-    negedges=(Rvals < 0) & (pvals < pthresh)
-    negedges=negedges.astype(int)
-    pe=ipmat[posedges.flatten().astype(bool),:]
-    ne=ipmat[negedges.flatten().astype(bool),:]
-    pe=pe.sum(axis=0)/2
-    ne=ne.sum(axis=0)/2
 
+    if corrtype == 'pearsonr':
+        df=num_pheno-2
+        Rvals=corr_multi.corr_multi_cy(pheno,ipmat.T)
+        tvals=(Rvals*np.sqrt(df))/np.sqrt(1-Rvals**2)
+        pvals=stats.t.sf(np.abs(tvals),df)*2
+
+       
+        # cc=[stats.pearsonr(pheno,im) for im in ipmat]
+        # Rvals=np.array([c[0] for c in cc])
+        # pvals=np.array([c[1] for c in cc])
+        #rmat=np.reshape(Rvals,[268,268])
+        #pmat=np.reshape(pvals,[268,268])
+        
+        posedges=(Rvals > 0) & (pvals < pthresh)
+        posedges=posedges.astype(int)
+        negedges=(Rvals < 0) & (pvals < pthresh)
+        negedges=negedges.astype(int)
+        pe=ipmat[posedges.flatten().astype(bool),:]
+        ne=ipmat[negedges.flatten().astype(bool),:]
+        pe=pe.sum(axis=0)/2
+        ne=ne.sum(axis=0)/2
+
+    elif corrtype == 'partial':
+        if type(confound) != np.ndarray:
+             raise Exception('if corrtype is partial confounds must be specified')
+
+        df=num_pheno-3
+       
+        y=pheno
+        y=(y-np.mean(y))/np.std(y)
+
+        z=confound
+        z=(z-np.mean(z))/np.std(z)
+
+        
+
+        ipmatMean=np.vstack(np.mean(ipmat,axis=1))
+        ipmatStdv=np.vstack(np.std(ipmat,axis=1))
+
+        
+
+        ipmatNorm=(ipmat-ipmatMean)/ipmatStdv
+
+        Rvals=corr_multi.partial_corr(ipmatNorm.T,y,z)
+
+        tvals=(Rvals*np.sqrt(df))/np.sqrt(1-Rvals**2)
+        pvals=stats.t.sf(np.abs(tvals),df)*2
+
+       
+        # cc=[stats.pearsonr(pheno,im) for im in ipmat]
+        # Rvals=np.array([c[0] for c in cc])
+        # pvals=np.array([c[1] for c in cc])
+        #rmat=np.reshape(Rvals,[268,268])
+        #pmat=np.reshape(pvals,[268,268])
+        
+        posedges=(Rvals > 0) & (pvals < pthresh)
+        posedges=posedges.astype(int)
+        negedges=(Rvals < 0) & (pvals < pthresh)
+        negedges=negedges.astype(int)
+        pe=ipmat[posedges.flatten().astype(bool),:]
+        ne=ipmat[negedges.flatten().astype(bool),:]
+        pe=pe.sum(axis=0)/2
+        ne=ne.sum(axis=0)/2
+
+    else:
+        raise Exception('corrtype must be "pearsonr" or "partial"')
 
 
 
@@ -86,73 +116,10 @@ def train_cpm(ipmat,pheno,pthresh=0.01):
     return fit_pos,fit_neg,posedges,negedges
 
 
-
-def apply_cpm(ipmats,edges,model):
-
-    """
-    Accepts input matrices, edges and model
-    Returns predicted behavior
-    """
-
-    
-    edgesum=np.sum(ipmats[edges.flatten().astype(bool),:], axis=0)/2   
-    behav_pred=model[0]*edgesum + model[1]
-
-
-
-    return behav_pred
-
-
-def testcorr():
-    ipdata=io.loadmat('../../Fingerprinting/ipmats.mat')
-    ipmats=ipdata['ipmats']
-    pmatvals=ipdata['pmatvals'][0]
-    ipmats_res=np.reshape(ipmats,[-1,843])
-    pmats_rep=np.repeat(np.vstack(pmatvals),71824,axis=1)
-    cc=corr2_coeff(ipmats_res,pmats_rep.T)
-
-    return cc
-
-def run_validate(ipmats,pheno,cvtype):
-
-    numsubs=ipmats.shape[1]
-    #ipmats=np.reshape(ipmats,[-1,numsubs])
-
-    cvstr_dct={
-    'LOO' : numsubs,
-    'splithalf' : 2,
-    '5k' : 5,
-    '10k' : 10}
-
-
-    if type(cvtype) == str:
-        if cvtype not in cvstr_dct.keys():
-            raise Exception('cvtype must be LOO, 5k, 10k, or splithalf (case sensitive)')
-        else:
-            knum=cvstr_dct[cvtype]
-    elif type(cvtype) == int:
-        knum=cvtype
-
-    else:
-        raise Exception('cvtype must be an int, representing number of folds, or a string descibing CV type')
-
-
-
-    bp,bn,ba,pe,ne,pf,nf=kfold_cpm(ipmats,pheno,numsubs,knum)
-
-    bp_res=np.reshape(bp,numsubs)
-    bn_res=np.reshape(bn,numsubs)
-    ba_res=np.reshape(ba,numsubs)
-
-    Rpos=stats.pearsonr(bp_res,ba_res)[0]
-    Rneg=stats.pearsonr(bn_res,ba_res)[0]
-
-
-    return Rpos,Rneg,pe,ne,bp_res,bn_res,ba_res,pf,nf
     
 
 
-def kfold_cpm(ipmats,pheno,numsubs,k):
+def kfold_cpm(ipmats,pheno,numsubs,k,corrtype,confound):
     randinds=np.arange(0,numsubs)
     random.shuffle(randinds)
 
@@ -190,10 +157,17 @@ def kfold_cpm(ipmats,pheno,numsubs,k):
         testmats=ipmats[:,testinds]
         testpheno=pheno[testinds]
 
+        if corrtype == 'partial':
+            trainconf=confound[traininds]
+            testconf=confound[testinds]
+        else:
+            trainconf=confound
+            testconf=confound
+
         behav_actual[fold,:]=testpheno
 
 
-        pos_fit,neg_fit,posedges,negedges=train_cpm(trainmats,trainpheno)
+        pos_fit,neg_fit,posedges,negedges=train_cpm(trainmats,trainpheno,corrtype = corrtype,confound = trainconf)
 
         pe=np.sum(testmats[posedges.flatten().astype(bool),:], axis=0)/2
         ne=np.sum(testmats[negedges.flatten().astype(bool),:], axis=0)/2
@@ -220,6 +194,282 @@ def kfold_cpm(ipmats,pheno,numsubs,k):
 
     return behav_pred_pos,behav_pred_neg,behav_actual,posedge_gather,negedge_gather, pf_gather, nf_gather
 
+
+
+def run_validate(ipmats,pheno,cvtype,corrtype,confound):
+
+    numsubs=ipmats.shape[1]
+    #ipmats=np.reshape(ipmats,[-1,numsubs])
+
+    cvstr_dct={
+    'LOO' : numsubs,
+    'splithalf' : 2,
+    '5k' : 5,
+    '10k' : 10}
+
+
+    if type(cvtype) == str:
+        if cvtype not in cvstr_dct.keys():
+            raise Exception('cvtype must be LOO, 5k, 10k, or splithalf (case sensitive)')
+        else:
+            knum=cvstr_dct[cvtype]
+    elif type(cvtype) == int:
+        knum=cvtype
+
+    else:
+        raise Exception('cvtype must be an int, representing number of folds, or a string descibing CV type')
+
+
+
+    bp,bn,ba,pe,ne,pf,nf=kfold_cpm(ipmats,pheno,numsubs,knum,corrtype,confound)
+
+    bp_res=np.reshape(bp,numsubs)
+    bn_res=np.reshape(bn,numsubs)
+    ba_res=np.reshape(ba,numsubs)
+
+    Rpos=stats.pearsonr(bp_res,ba_res)[0]
+    Rneg=stats.pearsonr(bn_res,ba_res)[0]
+
+
+    return Rpos,Rneg,pe,ne,bp_res,bn_res,ba_res,pf,nf
+
+
+
+
+def run_cpm(args):
+
+    '''
+    Interface for multiprocessing run
+    '''
+
+
+    niters=50
+    ipmats,pmats,tp,readfile,subs_to_run,tpmask,sublist,corrtype,confound=args
+
+
+    print('timepoint: ',tp)
+    
+
+    if readfile == True:
+        ipmats=pickle.load(open(ipmats,'rb'))
+        if len(ipmats.shape) == 3:
+            ipmats=np.transpose(ipmats,[1,2,0])
+            if ipmats.shape[0] != ipmats.shape[1]:
+                raise Exception('This is a 3D array but the dimensions typically designated ROIs are not equal')
+            nrois=ipmats.shape[0]**2
+            numsubs=ipmats.shape[2]
+            ipmats=ipmats.reshape(nrois,numsubs)
+            
+        elif len(ipmats.shape) == 2:
+            ipmats=np.transpose(ipmats,[1,0])
+            nrois=ipmats.shape[0]
+            numsubs=ipmats.shape[1]
+        else:
+            raise Exception('Input matrix should be 2 or 3 Dimensional (Nsubs x Nfeatures) or (Nsubs x Nrois x Nrois)')
+            
+
+    if type(tpmask) == np.ndarray and tpmask.dtype == bool:
+
+        ipmats=ipmats[:,tpmask]
+        pmats=pmats[tpmask]
+        if corrtype == 'partial':
+            condfound=confound[tpmask]
+
+        if ipmats.shape[1] < subs_to_run:
+            raise Exception('Not enough subs')
+        if pmats.shape[0] < subs_to_run:
+            raise Exception('Not enough dependent variables')
+
+        ipmats=ipmats[:,:subs_to_run]
+        pmats=pmats[:subs_to_run]
+        if corrtype == 'partial':
+            confound=confound[:subs_to_run]
+
+        numsubs=subs_to_run
+
+    elif type(tpmask) == bool and tpmask == False:
+
+        pass
+    else:
+        raise Exception('Datatype of mask not recognized, must be a boolean ndarray or boolean of value "False"')
+        
+
+
+
+    #ipmats=np.arctanh(ipmats)
+    #ipmats[ipmats == np.inf] = np.arctanh(0.999999)
+
+    Rvals=np.zeros((niters,1))
+    randinds=np.arange(0,numsubs)
+
+
+    pe_gather=np.zeros(nrois)
+    ne_gather=np.zeros(nrois)
+    bp_gather=[]
+    bn_gather=[]
+    ba_gather=[]
+    randinds_gather=[]
+    pf_gather=[]
+    nf_gather=[]
+    pe_gather_save=[]
+
+
+    for i in range(0,niters):
+        print('iter: ',i)
+
+        random.shuffle(randinds)
+        randinds_torun=randinds[:subs_to_run]
+        #randinds_to_run=randinds  
+
+        ipmats_rand=ipmats[:,randinds_torun]
+        pmats_rand=pmats[randinds_torun]
+
+
+        Rp,Rn,pe,ne,bp,bn,ba,pf,nf=run_validate(ipmats_rand,pmats_rand,'splithalf',corrtype,confound)
+        Rvals[i]=Rp
+        if i < 5:
+            pe_gather_save.append(pe)
+        pe_gather=pe_gather+pe
+        ne_gather=ne_gather+ne
+        bp_gather.append(bp)
+        bn_gather.append(bn)
+        ba_gather.append(ba)
+        randinds_gather.append(randinds_torun)
+        pf_gather.append(pf)
+        nf_gather.append(nf)
+
+    pe_gather=pe_gather/niters
+    ne_gather=ne_gather/niters
+    bp_gather=np.stack(bp_gather)
+    bn_gather=np.stack(bn_gather)
+    ba_gather=np.stack(ba_gather)
+    randinds_gather=np.stack(randinds_gather)
+
+    opdict={}
+    opdict['tp']=tp
+    opdict['rvals']=Rvals
+    opdict['posedges']=pe_gather
+    opdict['posedgesIndv']=pe_gather_save
+    opdict['negedges']=ne_gather
+    opdict['posbehav']=bp_gather
+    opdict['negbehav']=bn_gather
+    opdict['actbehav']=ba_gather
+    opdict['randinds']=randinds_gather
+    opdict['posfits']=pf_gather
+    opdict['negfits']=pf_gather
+    opdict['sublist']=sublist
+
+    if type(tpmask) == np.ndarray and tpmask.dtype == bool:
+        opdict['tpmask']=tpmask
+
+    return opdict
+
+
+def apply_cpm(ipmats,pmats,edges,model,tpmask,readfile,subs_to_run):
+
+    """
+    Accepts input matrices, edges and model
+    Returns predicted behavior
+    """    
+
+    if readfile == True:
+        ipmats=pickle.load(open(ipmats,'rb'))
+        if len(ipmats.shape) == 3:
+            ipmats=np.transpose(ipmats,[1,2,0])
+            if ipmats.shape[0] != ipmats.shape[1]:
+                raise Exception('This is a 3D array but the dimensions typically designated ROIs are not equal')
+            nrois=ipmats.shape[0]**2
+            numsubs=ipmats.shape[2]
+            ipmats=ipmats.reshape(nrois,numsubs)
+            
+        elif len(ipmats.shape) == 2:
+            ipmats=np.transpose(ipmats,[1,0])
+            nrois=ipmats.shape[0]
+            numsubs=ipmats.shape[1]
+        else:
+            raise Exception('Input matrix should be 2 or 3 Dimensional (Nsubs x Nfeatures) or (Nsubs x Nrois x Nrois)')
+
+    else:
+        if len(ipmats.shape) == 3:
+            ipmats=np.transpose(ipmats,[1,2,0])
+            if ipmats.shape[0] != ipmats.shape[1]:
+                raise Exception('This is a 3D array but the dimensions typically designated ROIs are not equal')
+            nrois=ipmats.shape[0]**2
+            numsubs=ipmats.shape[2]
+            ipmats=ipmats.reshape(nrois,numsubs)
+            
+        elif len(ipmats.shape) == 2:
+            ipmats=np.transpose(ipmats,[1,0])
+            nrois=ipmats.shape[0]
+            numsubs=ipmats.shape[1]
+        else:
+            raise Exception('Input matrix should be 2 or 3 Dimensional (Nsubs x Nfeatures) or (Nsubs x Nrois x Nrois)')
+
+            
+
+    if type(tpmask) == np.ndarray and tpmask.dtype == bool:
+
+        ipmats=ipmats[:,tpmask]
+        pmats=pmats[tpmask]
+
+        if ipmats.shape[1] < subs_to_run:
+            raise Exception('Not enough subs')
+        if pmats.shape[0] < subs_to_run:
+            raise Exception('Not enough dependent variables')
+
+        ipmats=ipmats[:,:subs_to_run]
+        pmats=pmats[:subs_to_run]
+
+        numsubs=subs_to_run
+
+    elif type(tpmask) == bool and tpmask == False:
+        pass
+    else:
+        raise Exception('Datatype of mask not recognized, must be a boolean ndarray or boolean of value "False"')
+        
+
+
+    
+    edgesum=np.sum(ipmats[edges.flatten().astype(bool),:], axis=0)/2   
+    behav_pred=model[0]*edgesum + model[1]
+
+
+
+    predscore=np.corrcoef(behav_pred,pmats)[0,1]
+
+
+    return predscore
+
+def bootstrapApplyCPM(ipmats,pmats,edges,model,tpmask,readfile,subs_to_run,niters):
+    """
+    Accepts input matrices, edges and model
+    Bootstraps smaller samples from input matrices
+    Returns array of predicted behavior
+    """
+
+    ipmats=pickle.load(open(ipmats,'rb'))
+
+    numsubs=ipmats.shape[0]
+
+    Rvals=np.zeros((niters,1))
+    randinds=np.arange(0,numsubs)
+
+    for i in range(0,niters):
+        print('iter: ',i)
+
+        random.shuffle(randinds)
+        randinds_torun=randinds[:subs_to_run]
+
+        ipmats_rand=ipmats[randinds_torun,:,:]
+        pmats_rand=pmats[randinds_torun]
+
+        Rvals[i,:]=apply_cpm(ipmats_rand,pmats_rand,edges,model,False,False,False)
+
+    return Rvals
+
+
+
+###### Old stuff ###################################
 
 def sample_500(ipmats,pheno,cvtype):
 
@@ -257,127 +507,33 @@ def sample_500(ipmats,pheno,cvtype):
 
 
 
+def testcorr():
+    ipdata=io.loadmat('../../Fingerprinting/ipmats.mat')
+    ipmats=ipdata['ipmats']
+    pmatvals=ipdata['pmatvals'][0]
+    ipmats_res=np.reshape(ipmats,[-1,843])
+    pmats_rep=np.repeat(np.vstack(pmatvals),71824,axis=1)
+    cc=corr2_coeff(ipmats_res,pmats_rep.T)
+
+    return cc
 
 
 
 
-def run_cpm(args):
+def corr2_coeff(A,B):
+	# from: https://stackoverflow.com/questions/30143417/computing-the-correlation-coefficient-between-two-multi-dimensional-arrays/30143754#30143754
+    # https://stackoverflow.com/questions/45403071/optimized-computation-of-pairwise-correlations-in-python?noredirect=1&lq=1
+    # Rowwise mean of input arrays & subtract from input arrays themeselves
 
+    A_mA = A - A.mean(1)[:,None]
+    B_mB = B - B.mean(1)[:,None]
 
-    niters=100
-    ipmats,pmats,tp,readfile,subs_to_run,tpmask,sublist=args
+    # Sum of squares across rows
+    ssA = (A_mA**2).sum(1);
+    ssB = (B_mB**2).sum(1);
 
-    
-    print('timepoint: ',tp)
-    
-
-    if readfile == True:
-        ipmats=pickle.load(open(ipmats,'rb'))
-        if len(ipmats.shape) == 3:
-            ipmats=np.transpose(ipmats,[1,2,0])
-            if ipmats.shape[0] != ipmats.shape[1]:
-                raise Exception('This is a 3D array but the dimensions typically designated ROIs are not equal')
-            nrois=ipmats.shape[0]**2
-            numsubs=ipmats.shape[2]
-            ipmats=ipmats.reshape(nrois,numsubs)
-            
-        elif len(ipmats.shape) == 2:
-            ipmats=np.transpose(ipmats,[1,0])
-            nrois=ipmats.shape[0]
-            numsubs=ipmats.shape[1]
-        else:
-            raise Exception('Input matrix should be 2 or 3 Dimensional (Nsubs x Nfeatures) or (Nsubs x Nrois x Nrois)')
-            
-
-    if type(tpmask) == np.ndarray and tpmask.dtype == bool:
-
-        ipmats=ipmats[:,tpmask]
-        pmats=pmats[tpmask]
-
-        if ipmats.shape[1] < subs_to_run:
-            raise Exception('Not enough subs')
-        if pmats.shape[0] < subs_to_run:
-            raise Exception('Not enough dependent variables')
-
-        ipmats=ipmats[:,:subs_to_run]
-        pmats=pmats[:subs_to_run]
-
-        numsubs=subs_to_run
-
-    elif type(tpmask) == bool and tpmask == False:
-        pass
-    else:
-        raise Exception('Datatype of mask not recognized, must be a boolean ndarray or boolean of value "False"')
-        
-
-
-
-    #ipmats=np.arctanh(ipmats)
-    #ipmats[ipmats == np.inf] = np.arctanh(0.999999)
-
-    Rvals=np.zeros((niters,1))
-    randinds=np.arange(0,numsubs)
-
-
-    pe_gather=np.zeros(nrois)
-    ne_gather=np.zeros(nrois)
-    bp_gather=[]
-    bn_gather=[]
-    ba_gather=[]
-    randinds_gather=[]
-    pf_gather=[]
-    nf_gather=[]
-
-    
-
-    for i in range(0,niters):
-        print('iter: ',i)
-
-        random.shuffle(randinds)
-        randinds_torun=randinds[:subs_to_run]
-        #randinds_to_run=randinds  
-
-        ipmats_rand=ipmats[:,randinds_torun]
-        pmats_rand=pmats[randinds_torun]
-
-
-        Rp,Rn,pe,ne,bp,bn,ba,pf,nf=run_validate(ipmats_rand,pmats_rand,'splithalf')
-        Rvals[i]=Rp
-        pe_gather=pe_gather+pe
-        ne_gather=ne_gather+ne
-        bp_gather.append(bp)
-        bn_gather.append(bn)
-        ba_gather.append(ba)
-        randinds_gather.append(randinds_torun)
-        pf_gather.append(pf)
-        nf_gather.append(nf)
-
-    pe_gather=pe_gather/niters
-    ne_gather=ne_gather/niters
-    bp_gather=np.stack(bp_gather)
-    bn_gather=np.stack(bn_gather)
-    ba_gather=np.stack(ba_gather)
-    randinds_gather=np.stack(randinds_gather)
-
-    opdict={}
-    opdict['tp']=tp
-    opdict['rvals']=Rvals
-    opdict['posedges']=pe_gather
-    opdict['negedges']=ne_gather
-    opdict['posbehav']=bp_gather
-    opdict['negbehav']=bn_gather
-    opdict['actbehav']=ba_gather
-    opdict['randinds']=randinds_gather
-    opdict['posfits']=pf_gather
-    opdict['negfits']=pf_gather
-    opdict['sublist']=sublist
-
-    if type(tpmask) == np.ndarray and tpmask.dtype == bool:
-        opdict['tpmask']=tpmask
-
-    return opdict
-
-
+    # Finally get corr coeff
+    return np.dot(A_mA,B_mB.T)/np.sqrt(np.dot(ssA[:,None],ssB[None]))
 
 
 def shred_data_run_hcp():

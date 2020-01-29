@@ -164,7 +164,7 @@ def load_timeseries(ippath,savepath,tier1,tier2):
         ts_parcel=ts_parcel[tier1][tier2]
         np.save(savepath,ts_parcel)
     else:
-        ts_parcel=np.load(savepath).item()
+        ts_parcel=np.load(savepath,allow_pickle=True).item()
     
 
     subs=[k.replace('sub','') for k in ts_parcel.keys()]
@@ -243,34 +243,7 @@ def gather_unfilt_ts(ip_globstr):
         opdict[subname]=tsdf.values
     np.save('./wm_ts_unfiltered.npy',opdict)
 
-def produce_sublist(opname):
 
-    # Load GSR corrected working memory time series
-    print("Loading working memory and resting to determine subs overlap")
-
-    ts_parcel_wm, wmsubs = utils.load_timeseries('../HCPDataStruct_GSR_WM_LR.mat','wm_ts.npy','data_struct','WM_LR')
-    ts_parcel_rest, restsubs = utils.load_timeseries('../HCPDataStruct_GSR_REST_LR.mat','rest_ts.npy','data_struct','REST_LR')
-
-
-    # Event subs
-    # Find possible working memory spreadsheets
-
-    taskeventsubs=np.load('../subswithsameWMstructure.npy')
-    taskeventsubs=[t.replace('sub','') for t in taskeventsubs]
-    
-    # Filter subs based on whats common to both modalities
-    subs_combo=list(sorted(set(restsubs).intersection(set(wmsubs)).intersection(set(taskeventsubs))))
-
-
-    pmat_all=pd.read_csv('/home/dmo39/pmat.csv')
-    pmat_filter=pmat_all[pmat_all.Subject.isin(subs_combo)]
-    pmat_filter_nan=pmat_filter[~pmat_filter.PMAT24_A_CR.isna()]
-    pmats=pmat_filter_nan.PMAT24_A_CR.values.astype(int)
-    subs_combo_pmat=list(pmat_filter_nan.Subject.values.astype(str))
-
-    np.save(opname,subs_combo_pmat)
-
-    return subs_combo_pmat
 
 def produce_pheno():
     

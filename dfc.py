@@ -216,29 +216,85 @@ def meanphase_dump(args):
         endshift=endshift_dct[window_anchor]
         tplist=range(0+beginshift,ntps-endshift)
 
-    
-    for tp in tplist:
 
-        opfname='indvphasecon_tp_'+str(tp).zfill(3)+'_'+window_anchor+'_numtps_'+str(windowtps).zfill(3)+'_sub_'+subid+'.pkl'
-        opfpath=os.path.join(opdir,opfname)
-        fpaths.append(opfpath)
-        if os.path.isfile(opfpath):
-            print('Final data already exists: ',opfpath)
-        else:
+    finalopfname='indvphasecon_tp_'+str(tplist[-1]).zfill(3)+'_'+window_anchor+'_numtps_'+str(windowtps).zfill(3)+'_sub_'+subid+'.pkl'
+    finalopfpath=os.path.join(opdir,finalopfname)
+    if os.path.isfile(finalopfpath):
+        print('Final data already exists: ',opfpath)
+    else:
+        for tp in tplist:
+
+            opfname='indvphasecon_tp_'+str(tp).zfill(3)+'_'+window_anchor+'_numtps_'+str(windowtps).zfill(3)+'_sub_'+subid+'.pkl'
+            opfpath=os.path.join(opdir,opfname)
+            fpaths.append(opfpath)
+
             if window_anchor == 'start':
                 mean_window_phasecon=np.mean(phasecon[tp:(tp+windowtps),:,:],axis=0)
             elif window_anchor == 'middle':
-                winstart=tp-round((windowtps+.5)/2)
-                winend=tp+round((windowtps+.5)/2)
-                mean_window_phasecon=np.mean(phasecon[winstart:(winend-1),:,:],axis=0)
+                winstart=tp-round((windowtps-.5)/2)
+                winend=tp+round((windowtps-.5)/2)+1
+                mean_window_phasecon=np.mean(phasecon[winstart:winend,:,:],axis=0)
             elif window_anchor == 'end':
                 mean_window_phasecon=np.mean(phasecon[(tp-windowtps+1):(tp+1),:,:],axis=0)
 
             tp_phasecon=np.expand_dims(mean_window_phasecon,0)
             pickle.dump(tp_phasecon,open(opfpath,'wb'))
-            print('Final data written to: ',opfpath)
+        print('Final data written to: ',opfpath)
 
     return fpaths
+
+
+def meanConfoundDump(ipname,windowtps,window_anchor):
+
+    
+    confoundDf=pd.read_csv(ipname,index_col=0)
+
+
+    wa_options=['start','middle','end']
+    if window_anchor not in wa_options:
+        raise Exception('Window anchor must be specified as one of: ', wa_options)
+    elif window_anchor == 'middle' and not windowtps % 2:
+        raise Exception('You specified an even window length, but to anchor the window at the middle timepoint, unsure how to proceed')
+
+
+    confoundArr=confoundDf.values
+    colnames=confoundDf.columns
+    ntps=confoundDf.values.shape[0] #???    
+
+    beginshift_dct={
+    'start':0,
+    'middle':np.ceil(windowtps/2).astype(int)-1,
+    'end':windowtps-1}
+
+    endshift_dct={
+    'start':windowtps-1,
+    'middle':np.ceil(windowtps/2).astype(int)-1,
+    'end':0}
+
+
+    beginshift=beginshift_dct[window_anchor]
+    endshift=endshift_dct[window_anchor]
+    tplist=range(0+beginshift,ntps-endshift)
+
+    newArr=np.zeros([len(tplist),len(colnames)])
+    
+    for i,tp in enumerate(tplist):
+
+        if window_anchor == 'start':
+            newArr[i,:]=np.mean(confoundArr[tp:(tp+windowtps),:],axis=0)
+        elif window_anchor == 'middle':
+            winstart=tp-round((windowtps-.5)/2)
+            winend=tp+round((windowtps-.5)/2)+1
+            
+            newArr[i,:]=np.mean(confoundArr[winstart:winend,:],axis=0)
+        elif window_anchor == 'end':
+            newArr[i,:]=np.mean(confoundArr[(tp-windowtps+1):(tp+1),:],axis=0)
+
+
+    opdf=pd.DataFrame(newArr,columns=colnames,index=tplist)
+
+    return opdf 
+
 
 def gather_meanphase(args):
     ippaths,oppath=args
@@ -247,21 +303,21 @@ def gather_meanphase(args):
 
     if os.path.isfile(oppath):
         print('Already exists:', oppath)
-        for ipf in ippaths:
-            os.remove(ipf)
+        #for ipf in ippaths:
+        #    os.remove(ipf)
     
     else:
         if numfs == 1:
             fpath=ippaths[0]
             av_pc=pickle.load(open(fpath,'rb'))
-            os.remove(fpath)
+        #    os.remove(fpath)
 
 
         else:
             gather_mats=[pickle.load(open(ipf,'rb')) for ipf in ippaths]
             av_pc=np.stack(gather_mats).squeeze()
-            for ipf in ippaths:
-                os.remove(ipf)
+            #for ipf in ippaths:
+            #    os.remove(ipf)
 
         pickle.dump(av_pc,open(oppath,'wb'))
   
