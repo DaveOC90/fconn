@@ -29,30 +29,33 @@ s3 = boto3.resource('s3')
 bucket = s3.Bucket('hcp-openaccess')
 
 for sub in subs:
-    #pref='/'.join(['HCP_900',sub,'unprocessed/3T/tfMRI_WM_LR/LINKED_DATA/EPRIME/'])
-    #pref='/'.join(['HCP_1200',sub,'MNINonLinear/Results/tfMRI_WM_LR/'])
-    pref='/'.join(['HCP_1200',sub,'MNINonLinear/Results/rfMRI_REST1_LR/'])
-    #for obj in bucket.objects.filter(Prefix='HCP_900/'):
-    destfold='/'.join(['/mnt/d/ResearchOverflow/HCP-REST1-LR-Movement-1200',sub])
-    print(destfold)
-    if os.path.isdir(destfold):
-        pass
-    else:
-        for obj in bucket.objects.filter(Prefix=pref):
-            if all([x in obj.key for x in ['Movement']]):
-                bits=obj.key.split('/')
-                ind=bits.index('rfMRI_REST1_LR')
-                sub=bits[1]
-                dest='/'.join([opDir,sub]+bits[ind+1:])
-                destfold='/'.join(dest.split('/')[:-1])
+    prefList = []
+    prefList.append('/'.join(['HCP_900',sub,'unprocessed/3T/tfMRI_WM_LR/LINKED_DATA/EPRIME/']))
+    prefList.append('/'.join(['HCP_1200',sub,'MNINonLinear/Results/tfMRI_WM_LR/']))
+    prefList.append('/'.join(['HCP_1200',sub,'MNINonLinear/Results/rfMRI_REST1_LR/']))
 
-                try:
-                    os.makedirs(destfold)
-                except FileExistsError:
-                    pass
+    for pL in prefList:
+        suf = pL.split('/')[-2]
+        destfold='/'.join([opDir,sub,suf.lower()])
+        print(destfold)
+        if os.path.isdir(destfold):
+            pass
+        else:
+            for obj in bucket.objects.filter(Prefix=pL):
+                if all([x in obj.key for x in ['Movement']]):
+                    bits=obj.key.split('/')
+                    ind=bits.index(suf)
+                    sub=bits[1]
+                    dest='/'.join([destfold]+bits[ind+1:])
+                    destfold='/'.join(dest.split('/')[:-1])
 
-                if os.path.isfile(dest):
-                    print('Already exits:',obj.key,'as:',dest) 
-                else:
-                    print('Downloading:',obj.key,'to:',dest)
-                    bucket.download_file(obj.key,dest)
+                    try:
+                        os.makedirs(destfold)
+                    except FileExistsError:
+                        pass
+
+                    if os.path.isfile(dest):
+                        print('Already exits:',obj.key,'as:',dest) 
+                    else:
+                        print('Downloading:',obj.key,'to:',dest)
+                        bucket.download_file(obj.key,dest)
