@@ -318,7 +318,6 @@ def resampleCPM(ipmats, pheno, resampleSize, corrtype = 'pearsonr', confound = F
 
     '''
 
-
     nedges, numsubs = ipmats.shape
     sampleInds=np.arange(0,numsubs)
     
@@ -369,6 +368,9 @@ def run_cpm(argDict = None):
     Can iteratively run cpm with resampling/CV many times and aggregates outputs
     Accepts input dictionary with all parameters
     '''
+
+    niters=10
+    ipmats,pmats,tp,readfile,subs_to_run,tpmask,sublist,corrtype,confound=args
 
 
     if argDict is not None and type(argDict) == dict:

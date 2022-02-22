@@ -5,11 +5,14 @@ from collections import Counter
 import operator
 import os
 import sys
+import pdb
+import natsort
+
 
 
 eprimePath = sys.argv[1]
 
-alleprimefpaths=glob.glob(os.path.join(eprimePath,'*/*WM*.txt'))
+alleprimefpaths=natsort.natsorted(glob.glob(os.path.join(eprimePath,'*/*/*WM*.txt')))
 
 
 cols_of_interest=[
@@ -60,11 +63,13 @@ for aef in alleprimefpaths:
 
 
 
-
-
-fs=glob.glob(os.path.join(eprimePath,'*/*filt*'))
+fs=natsort.natsorted(glob.glob(os.path.join(eprimePath,'*/*/*filt*')))
 df_list=[pd.read_csv(f,index_col=0) for f in fs]
-sublist=['sub'+f.split('/')[0] for f in fs]
+
+sublist=[f.split('/')[-3] for f in fs]
+
+nsubs = len(sublist)
+
 aggeventcols=pd.concat([df.EventCol for df in df_list],axis=1) 
 aggeventcols.columns=sublist 
 aggeventcols.apply(Counter,axis=1)
@@ -75,19 +80,28 @@ subswithsamedata=[k for k in aggeventcols.columns if np.sum(aggeventcols[k]==mos
 
 
 
-flist=glob.glob(os.path.join(eprimePath,'*/*_3T_WM_run*_TAB_filtered.csv'))
+flist=natsort.natsorted(glob.glob(os.path.join(eprimePath,'*/*/*_3T_WM_run*_TAB_filtered.csv')))
 dflist=[pd.read_csv(f,index_col=0) for f in flist]
 
-accarr=np.zeros([405,865])
+accarr=np.zeros([405,nsubs])
 accarr[:,:]=np.nan
 for i,df in enumerate(dflist):
     accarr[df.VolumeAssignment.values-1,i]=df.ACC.values
-RTarr=np.zeros([405,865])
+
+
+
+RTarr=np.zeros([405,nsubs])
 RTarr[:,:]=np.nan
 for i,df in enumerate(dflist):
+    print(flist[i])
     RTarr[df.VolumeAssignment.values-1,i]=df.RT.values
 
-sublist=list(map(lambda x: 'sub'+x.split('/')[1],flist)) 
+
+
+#sublist=list(map(lambda x: 'sub'+x.split('/')[-3],flist)) 
+
+
+
 
 #RTarr[np.isnan(RTarr)]=0
 RTdf=pd.DataFrame(RTarr)
@@ -104,14 +118,69 @@ accdf.to_csv(os.path.join(eprimePath,'AccuracyByTP.csv'))
 
 
 RTdf_ffill=RTdf.replace(to_replace=np.nan,method='ffill',limit=3)
-problem_tps=RTdf_ffill.ix[np.sum(RTdf_ffill == 0,axis=1) > 50]
-subsindskeeps=problem_tps[~(problem_tps == 0)].dropna(axis=1).columns
-substokeep=[sublist[s] for s in subsindskeeps]
+
+problem_tps=RTdf_ffill.loc[np.sum(RTdf_ffill == 0,axis=1) > 50]
+substokeep=problem_tps[~(problem_tps == 0)].dropna(axis=1).columns
+
+
 np.save(os.path.join(eprimePath,'subswithlesszeros.npy'),substokeep)
 
-eventcolarr=np.zeros([405,865],'object_')
+eventcolarr=np.zeros([405,nsubs],'object_')
 for i,df in enumerate(df_list):
     eventcolarr[df.VolumeAssignment.values-1,i]=df.EventCol.values
 ECdf=pd.DataFrame(eventcolarr)
 ECdf.columns=sublist
 ECdf.to_csv(os.path.join(eprimePath,'EventColbySub.csv'))
+
+
+
+
+eventdf=ECdf
+eventdf_ffill=eventdf.replace(to_replace=0,method='ffill')
+eventdf_ffill_nofix=eventdf_ffill.replace(to_replace='Fix',method='ffill')
+
+ZeroBackMaskdf=eventdf_ffill_nofix.apply(lambda x : ['0-Back' in x1 for x1 in x],axis=0)
+TwoBackMaskdf=eventdf_ffill_nofix.apply(lambda x : ['2-Back' in x1 for x1 in x],axis=0)
+
+ZeroBackMaskdf.columns=list(map(lambda x:x.replace('sub',''),ZeroBackMaskdf.columns))
+TwoBackMaskdf.columns=list(map(lambda x:x.replace('sub',''),TwoBackMaskdf.columns))
+
+ZeroBackMaskdf.to_csv(os.path.join(eprimePath,'zerobackmask.csv'))
+TwoBackMaskdf.to_csv(os.path.join(eprimePath,'twobackmask.csv'))
+
+ZeroandTwo=ZeroBackMaskdf | TwoBackMaskdf
+NoStim=~ZeroandTwo
+NoStim.to_csv(os.path.join(eprimePath,'restmask.csv'))
+
+
+for i in range(0,4):
+    startindex=i*2
+    endindex=(i*2)+1
+    
+    print(startindex,endindex)
+
+    ZeroFalseArr=np.zeros(ZeroBackMaskdf.values.shape).astype(bool)
+    ZeroBlockIndices=ZeroBackMaskdf.apply(lambda x : np.nonzero(np.diff(x))[0],axis=0)
+    for j,col in enumerate(ZeroBlockIndices):
+        subindices=ZeroBlockIndices[col]
+        # Might need to add one to these indices
+        ZeroFalseArr[subindices[startindex]:subindices[endindex],j]=ZeroBackMaskdf[col].values[subindices[startindex]:subindices[endindex]]
+
+    ZeroBackMaskdfFalse=pd.DataFrame(ZeroFalseArr,columns=ZeroBackMaskdf.columns)
+    ZeroBackMaskdfFalse.to_csv(os.path.join(eprimePath,'ZeroBackMaskBlock'+str(i+1)+'.csv'))
+
+
+
+    TwoFalseArr=np.zeros(TwoBackMaskdf.values.shape).astype(bool)
+    TwoBlockIndices=TwoBackMaskdf.apply(lambda x : np.nonzero(np.diff(x))[0],axis=0)
+    for j,col in enumerate(TwoBlockIndices):
+        subindices=TwoBlockIndices[col]
+        # Might need to add one to these indices
+        TwoFalseArr[subindices[startindex]:subindices[endindex],j]=TwoBackMaskdf[col].values[subindices[startindex]:subindices[endindex]]
+
+    TwoBackMaskdfFalse=pd.DataFrame(TwoFalseArr,columns=TwoBackMaskdf.columns)
+    TwoBackMaskdfFalse.to_csv(os.path.join(eprimePath,'TwoBackMaskBlock'+str(i+1)+'.csv'))
+
+
+
+
