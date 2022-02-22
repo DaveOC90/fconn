@@ -88,7 +88,7 @@ def corr_multi_cy(arr,mat):
         
         cross_mul=bn.nansum(arrdemean*bdemean)
     
-        if bss == 0:
+        if bss*arrss == 0:
             r=0
         else:
             r=cross_mul/(arrss*bss)
