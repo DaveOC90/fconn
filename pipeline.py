@@ -55,6 +55,8 @@ from multiprocessing import Pool
 # ~/anaconda3/bin/python pipeline.py wm_ts.npy /data15/mri_group/dave_data/dcpm/RT_inputtoCPM_alldata.csv ~/ohbm2019/code/substouse.npy 500 400 /data15/mri_group/dave_data/dcpm/rawDfcPlusModel_subbytp/ 1,3,5,7,9,11,13,15,17,19,21,23,25,27 middle test
 # ~/anaconda3/bin/python pipeline.py ~/ohbm2019/code/wm_ts.npy /data15/mri_group/dave_data/dcpm/target_variables/PMATs_inputtoCPM_oneline.csv ~/ohbm2019/code/substouse.npy 400 400 /data15/mri_group/dave_data/dcpm/staticcon_fIQ_400_400/ 405 static test
 
+# python code/fconn/pipeline.py data/HCP/imagingData/HCP_WM_LR_GSR.npy target_variables/PMATs_inputtoCPM_oneline.csv substouse.npy 400 400 ~/scratch60/dCPM/ 405 static test
+
 
 
 
@@ -64,8 +66,8 @@ def produce_sublist(opname):
     # Load GSR corrected working memory time series
     print("Loading working memory and resting to determine subs overlap")
 
-    ts_parcel_wm, wmsubs = utils.load_timeseries('/home/dmo39/ohbm19/HCPDataStruct_GSR_WM_LR.mat','/home/dmo39/ohbm19/code/wm_ts.npy','data_struct','WM_LR')
-    ts_parcel_rest, restsubs = utils.load_timeseries('/home/dmo39/ohbm19/HCPDataStruct_GSR_REST_LR.mat','/home/dmo39/ohbm19/code/rest_ts.npy','data_struct','REST_LR')
+    ts_parcel_wm, wmsubs = utils.load_timeseries('HCPDataStruct_GSR_WM_LR.mat','wm_ts.npy','data_struct','WM_LR')
+    ts_parcel_rest, restsubs = utils.load_timeseries('HCPDataStruct_GSR_REST_LR.mat','rest_ts.npy','data_struct','REST_LR')
 
 
     # Event subs
@@ -113,9 +115,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--temporalmask',help='Path to mask; Specify which timepoints to include in analysis, only for static right now')
 
-
-    
-    parser.add_argument('--corrtype',help='"pearsonr" or "partial"; if partial please specify confound')
+    parser.add_argument('--corrtype',help='"pearsonr" or "partial"; if partial please specify confound',type=str,default = 'pearsonr')
     parser.add_argument('--confound',help='path to confound csv')
     
     args=parser.parse_args()
@@ -139,7 +139,10 @@ if __name__ == '__main__':
 
     maskfile=args.temporalmask
 
-   
+    ## paralell processing vals
+
+    cpmParallelRuns = 10
+    dFCCalcParallelRuns = 10
     
 
     #ipfile='wm_ts.npy'
@@ -186,10 +189,10 @@ if __name__ == '__main__':
 
     # Create subject list using produce sublist if it doesnt exist
     # Should get rid of this and just go with inputted sublist
-    if not os.path.isfile(subject_list):
-        subject_list=produce_sublist(subject_list)
-    else:
-        subject_list=list(np.load(subject_list))
+    #if not os.path.isfile(subject_list):
+    #    subject_list=produce_sublist(subject_list)
+    #else:
+    subject_list=list(map(str,np.load(subject_list, allow_pickle=True)))
 
 
     # Use only first x subs, again should get rid of this
@@ -237,6 +240,7 @@ if __name__ == '__main__':
         subbytp_exclude=mask.apply(lambda x : sublistarr[~x],axis=1).values
     
     # Turn prediction target into array
+
     prediction_target=prediction_target.values
 
 
@@ -295,6 +299,7 @@ if __name__ == '__main__':
     if conn_type == 'dynamic':
         for avtps in avtps_list:
 
+            print(avtps)
 
             # Figuring out start and end timepoints based on imaging data and 
             # prediction targets available
@@ -334,7 +339,7 @@ if __name__ == '__main__':
 
 
                 # Input array for multithreaded calculation of phase connectivity 
-                thread_ips_pcmats=[(ts_parcel['sub'+subject_list[j]],insta_pc_dir,avtps,window_anchor,str(j).zfill(3),tps_to_dump) for j in range(0,len(subject_list))] # formerly nsubs
+                thread_ips_pcmats=[(ts_parcel[subject_list[j]],insta_pc_dir,avtps,window_anchor,str(j).zfill(3),tps_to_dump) for j in range(0,len(subject_list))] # formerly nsubs
 
                 # Dump out each windowed calculation for each subject
                 with ThreadPool(15) as p:
@@ -421,7 +426,7 @@ if __name__ == '__main__':
             print("Masking timeseries")
             mask=pd.read_csv(maskfile,index_col=0)
             mask=mask[subject_list]
-            ts_parcel={'sub'+k:ts_parcel['sub'+k][mask[k].values,:] for k in subject_list}
+            ts_parcel={k:ts_parcel[k][mask[k].values,:] for k in subject_list}
 
             if corrtype == 'partial':
                  confoundArr=np.vstack([np.mean(confoundArr[mask.values[:,i],i]) for i in range(0,len(subject_list)) ]).T
@@ -444,7 +449,7 @@ if __name__ == '__main__':
         # Run for any phase connectivity that doesnt exist
         if not all(ogm_mask):
             # Input array for multithreaded calculation of phase connectivity 
-            thread_ips_pcmats=[(ts_parcel['sub'+subject_list[j]],insta_pc_dir,ts_parcel['sub'+subject_list[j]].shape[0],'start',str(j).zfill(3),[]) for j in range(0,len(subject_list))] # formerly nsubs
+            thread_ips_pcmats=[(ts_parcel[subject_list[j]],insta_pc_dir,ts_parcel[subject_list[j]].shape[0],'start',str(j).zfill(3),[]) for j in range(0,len(subject_list))] # formerly nsubs
 
             # Dump out each windowed calculation for each subject
             with ThreadPool(15) as p:
@@ -470,7 +475,10 @@ if __name__ == '__main__':
             cpmfiles=opnames_gather_meanphase
         
 
-        cpm_ipfiles=[(cpmfiles[0],prediction_target[0],0,True,subs_to_run,False,subject_list,corrtype,confoundArr[0])]
+        if corrtype == 'pearsonr':
+            cpm_ipfiles=[(cpmfiles[0],prediction_target[0],0,True,subs_to_run,False,subject_list,corrtype,None)]
+        else:
+            cpm_ipfiles=[(cpmfiles[0],prediction_target[0],0,True,subs_to_run,False,subject_list,corrtype,confoundArr[0])]
 
 
 

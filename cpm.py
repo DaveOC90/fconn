@@ -243,7 +243,7 @@ def run_cpm(args):
     '''
 
 
-    niters=50
+    niters=10
     ipmats,pmats,tp,readfile,subs_to_run,tpmask,sublist,corrtype,confound=args
 
 

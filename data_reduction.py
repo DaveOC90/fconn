@@ -30,8 +30,8 @@ elif os.path.isdir('/home/dmo39/'):
     sys.path.append('/home/dmo39/gitrepos/FIt-SNE-master/')
     sys.path.append('/home/dmo39/gitrepos/fconn/')
 
-from fast_tsne import fast_tsne
-from tsne import tsne
+#from fast_tsne import fast_tsne
+#from tsne import tsne
 from leida import calc_eigs
 
 
