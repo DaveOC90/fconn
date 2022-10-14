@@ -167,7 +167,8 @@ def load_timeseries(ippath,savepath,tier1,tier2):
         ts_parcel=np.load(savepath,allow_pickle=True).item()
     
 
-    subs=[k.replace('sub','') for k in ts_parcel.keys()]
+    #subs=[k.replace('sub','') for k in ts_parcel.keys()]
+    subs=[k for k in ts_parcel.keys()]
 
 
     return ts_parcel,subs
