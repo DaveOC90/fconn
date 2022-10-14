@@ -172,7 +172,7 @@ def run_main(edgedf_stack,netmap,opname):
             text = nodesortlist[e[0]-1] + ' to ' + nodesortlist[e[1]-1] #+ ' ' + str(Weights[j]) + ' pts'
             mark = deCasteljau(b, 0.9)
 
-            edge_info.append(plotly.graph_objs.Scatter(x=np.array(mark[0]),y=np.array(mark[1]),mode='markers',marker=plotly.graph_objs.Marker(size=0.5, color=edge_colors),text=text,hoverinfo='text',showlegend=False)) 
+            edge_info.append(plotly.graph_objs.Scatter(x=np.array(mark[0]),y=np.array(mark[1]),mode='markers',marker=plotly.graph_objs.scatter.Marker(size=0.5, color=edge_colors),text=text,hoverinfo='text',showlegend=False)) 
 
             lines.append(plotly.graph_objs.Scatter(x=pts[:, 0],y=pts[:, 1],mode='lines',line=plotly.graph_objs.Line(color='rgba({}, {}, {}, {})'.format(*color_range(my_weights[j])),shape='spline',width=Weights[j]*2),hoverinfo='none',showlegend=False))
         else:
@@ -287,7 +287,7 @@ def run_main(edgedf_stack,netmap,opname):
 
 
 
-    color_trace = plotly.graph_objs.Scatter(x=[0 for _ in my_weights],y=[0 for _ in my_weights],mode='markers',marker=plotly.graph_objs.Marker(colorscale=[[c / 100.0, 'rgba({}, {}, {}, {})'.format(*color_range(c / 100.0))] for c in range(101)],size=1,color=my_weights,showscale=True),showlegend=False)
+    color_trace = plotly.graph_objs.Scatter(x=[0 for _ in my_weights],y=[0 for _ in my_weights],mode='markers',marker=plotly.graph_objs.scatter.Marker(colorscale=[[c / 100.0, 'rgba({}, {}, {}, {})'.format(*color_range(c / 100.0))] for c in range(101)],size=1,color=my_weights,showscale=True),showlegend=False)
 
     #data = plotly.graph_objs.Data([color_trace] + lines + edge_info + [trace2])
     print('Make data object')
@@ -295,21 +295,16 @@ def run_main(edgedf_stack,netmap,opname):
     print('Make fig object')
     fig = plotly.graph_objs.Figure(data=data, layout=layout)
 
-    proc1 = subprocess.Popen(['/home/dmo39/anaconda3/bin/orca', 'serve', '-p', '43229', '--plotly', '/home/dmo39/anaconda3/lib/python3.7/site-packages/plotly/package_data/plotly.min.js', '--graph-only', '--mathjax', 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js''-keep-alive'],stdout=subprocess.PIPE, shell=True)
 
     print('Write image')
     fig.write_image(opname)
 
 
-    #pdb.set_trace()
-    #plotly.offline.plot(fig, filename='edgetest.html')
 
-    proc1.terminate()
-
-
-
-def run_main_diffhem(edgedf_stack,netmap,opname):
+def run_main_diffhem(edgedf_stack,netmap,opname, pltX = 800, pltY = 850, legend = True):
     print("Prepping Input")
+
+
 
     # What are the labels and the connections
     labels = edgedf_stack.source.unique()
@@ -361,7 +356,7 @@ def run_main_diffhem(edgedf_stack,netmap,opname):
             text = nodesortlist[e[0]-1] + ' to ' + nodesortlist[e[1]-1] #+ ' ' + str(Weights[j]) + ' pts'
             mark = deCasteljau(b, 0.9)
 
-            edge_info.append(plotly.graph_objs.Scatter(x=np.array(mark[0]),y=np.array(mark[1]),mode='markers',marker=plotly.graph_objs.Marker(size=0.5, color=edge_colors),text=text,hoverinfo='text',showlegend=False)) 
+            edge_info.append(plotly.graph_objs.Scatter(x=np.array(mark[0]),y=np.array(mark[1]),mode='markers',marker=plotly.graph_objs.scatter.Marker(size=0.5, color=edge_colors),text=text,hoverinfo='text',showlegend=False)) 
 
             lines.append(plotly.graph_objs.Scatter(x=pts[:, 0],y=pts[:, 1],mode='lines',line=plotly.graph_objs.Line(color='rgba({}, {}, {}, {})'.format(*color_range(my_weights[j])),shape='spline',width=Weights[j]*2),hoverinfo='none',showlegend=False))
         else:
@@ -512,10 +507,10 @@ def run_main_diffhem(edgedf_stack,netmap,opname):
                 title=''
                 )
 
-    layout = plotly.graph_objs.Layout(showlegend=True,
+    layout = plotly.graph_objs.Layout(showlegend=legend,
                                       autosize=False,
-                                      width=800,
-                                      height=850,
+                                      width=pltX,
+                                      height=pltY,
                                       paper_bgcolor='rgba(255,255,255, 1)',
                                       plot_bgcolor='rgba(255,255,255, 1)',
                                       xaxis=plotly.graph_objs.XAxis(axis),
@@ -526,13 +521,16 @@ def run_main_diffhem(edgedf_stack,netmap,opname):
                                                                       t=100,
                                                                       ),
                                       hovermode='closest',
-                                      legend=dict(x=-.1, y=1.2))
+                                      legend=dict(x=-.2, y=1.3),
+                                      font=dict(size=15)
+                                        )
 
     layout['shapes'] = shape_append
 
 
+    colorMarker = plotly.graph_objs.scatter.Marker(colorscale=[[c / 100.0, 'rgba({}, {}, {}, {})'.format(*color_range(c / 100.0))] for c in range(101)], size=1, color=my_weights, showscale=True, colorbar=dict(tickfont=dict(size=20)))
 
-    color_trace = plotly.graph_objs.Scatter(x=[0 for _ in my_weights],y=[0 for _ in my_weights],mode='markers',marker=plotly.graph_objs.Marker(colorscale=[[c / 100.0, 'rgba({}, {}, {}, {})'.format(*color_range(c / 100.0))] for c in range(101)],size=1,color=my_weights,showscale=True),showlegend=False)
+    color_trace = plotly.graph_objs.Scatter(x=[0 for _ in my_weights],y=[0 for _ in my_weights],mode='markers',marker=colorMarker,showlegend=False)
 
     #data = plotly.graph_objs.Data([color_trace] + lines + edge_info + [trace2])
     print('Make data object')
@@ -540,15 +538,9 @@ def run_main_diffhem(edgedf_stack,netmap,opname):
     #data = plotly.graph_objs.Data(ideograms)
     print('Make fig object')
     fig = plotly.graph_objs.Figure(data=data, layout=layout)
-
-    proc1 = subprocess.Popen(['/home/dmo39/anaconda3/bin/orca', 'serve', '-p', '43229', '--plotly', '/home/dmo39/anaconda3/lib/python3.7/site-packages/plotly/package_data/plotly.min.js', '--graph-only', '--mathjax', 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js''-keep-alive'],stdout=subprocess.PIPE, shell=True)
+    fig.update_layout(legend_font_size=22, legend = dict(bgcolor = 'rgba(0,0,0,0)', orientation="h"))
 
     print('Write image')
     fig.write_image(opname)
 
 
-    #pdb.set_trace()
-    #plotly.offline.plot(fig, filename='edgetest.html')
-
-    proc1.terminate()
-    
