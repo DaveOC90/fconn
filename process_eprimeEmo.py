@@ -12,38 +12,22 @@ import natsort
 
 eprimePath = sys.argv[1]
 
-alleprimefpaths=natsort.natsorted(glob.glob(os.path.join(eprimePath,'*/*/*WM*.txt')))
+alleprimefpaths=natsort.natsorted(glob.glob(os.path.join(eprimePath,'*/*/*EMOTION*.txt')))
 
 
 
-cols_of_interest=[
- 'Cue2Back.',
- 'Stim.',
- 'Fix.',
- 'CueTarget.',
- 'Fix15sec.',
- 'SyncSlide.',
- 'TargetType',
- 'StimType',
- 'BlockType']
 
-change_names={
-	'TargetType':'Stim.TargetType',
-	'StimType':'Stim.StimType',
-	'BlockType':'Stim.BlockType'
-}
+cols_of_interest = ['shape.','StimSlide.', 'Fixation.','face.']
 
-#index=pd.MultiIndex.from_tuples([(c.split('.')) for c in cols_of_interest],names=['Event','Property'])
+
+
+
+index=pd.MultiIndex.from_tuples([(c.split('.')) for c in cols_of_interest],names=['Event','Property'])
 
 for aef in alleprimefpaths:
     print(aef)
-    df_tst=pd.read_csv(aef,sep='\t')
-    try:
-        df_tst=df_tst.rename(index=str,columns=change_names)
-        
-    except KeyError:
-        raise('At least one column to be renamed doesnt exist!!!')
 
+    df_tst=pd.read_csv(aef,sep='\t')
     sub_coi=[c for c in df_tst.columns if any(x in c for x in cols_of_interest)]
     df_tst=df_tst[sub_coi]
     index=pd.MultiIndex.from_tuples([(c.split('.')) for c in sub_coi],names=['Event','Property'])
@@ -53,11 +37,11 @@ for aef in alleprimefpaths:
     RTonsets_corr=stackedinfo.RTTime-stackedinfo.OnsetTime.values[0]
     stackedinfo['CorrectedOnsetTime']=onsets_corr
     stackedinfo['CorrectedRTTime']=RTonsets_corr
-    volume_timing=[720*i for i in range(0,406)]
+    volume_timing=[720*i for i in range(0,176)]
     stackedinfo['VolumeAssignment']=np.digitize(onsets_corr.astype('int32'),volume_timing)
     stackedinfo['EventCol']=stackedinfo.index.to_frame(index=True)['Event'].values
-    pdb.set_trace()
-    stackedinfo.EventCol[stackedinfo.EventCol == 'Stim']= stackedinfo[stackedinfo.EventCol == 'Stim'][['EventCol','BlockType','StimType']].apply(lambda x: '-'.join(x),axis=1)
+
+    #stackedinfo.EventCol[stackedinfo.EventCol == 'Stim']= stackedinfo[stackedinfo.EventCol == 'StimSlide'][['EventCol','BlockType','StimType']].apply(lambda x: '-'.join(x),axis=1)
 
 
     stackedinfo.to_csv(aef.replace('.txt','_filtered.csv'))
@@ -72,31 +56,33 @@ sublist=[f.split('/')[-3] for f in fs]
 
 nsubs = len(sublist)
 
+
 aggeventcols=pd.concat([df.EventCol for df in df_list],axis=1) 
 aggeventcols.columns=sublist 
 aggeventcols.apply(Counter,axis=1)
 compareres=pd.concat([aggeventcols.apply(lambda x: max(Counter(x).keys(),key=operator.itemgetter(1)),axis=1),aggeventcols.apply(lambda x: Counter(x),axis=1)],axis=1)
 mostcommon=aggeventcols.apply(lambda x: max(Counter(x).keys(),key=operator.itemgetter(1)),axis=1)
-subswithsamedata=[k for k in aggeventcols.columns if np.sum(aggeventcols[k]==mostcommon) == 176]
+subswithsamedata=[k for k in aggeventcols.columns if np.sum(aggeventcols[k]==mostcommon) == 72]
 
 
 
 
-flist=natsort.natsorted(glob.glob(os.path.join(eprimePath,'*/*/*_3T_WM_run*_TAB_filtered.csv')))
+flist=natsort.natsorted(glob.glob(os.path.join(eprimePath,'*/*/*_3T_EMOTION_run*_TAB_filtered.csv')))
 dflist=[pd.read_csv(f,index_col=0) for f in flist]
 
-accarr=np.zeros([405,nsubs])
+accarr=np.zeros([176,nsubs])
 accarr[:,:]=np.nan
 for i,df in enumerate(dflist):
     accarr[df.VolumeAssignment.values-1,i]=df.ACC.values
 
 
 
-RTarr=np.zeros([405,nsubs])
+RTarr=np.zeros([176,nsubs])
 RTarr[:,:]=np.nan
 for i,df in enumerate(dflist):
     print(flist[i])
     RTarr[df.VolumeAssignment.values-1,i]=df.RT.values
+
 
 
 
@@ -111,6 +97,8 @@ RTdf=RTdf.replace(to_replace=np.nan,method='ffill',limit=3)
 RTdf.columns=sublist 
 RTdf.to_csv(os.path.join(eprimePath,'ResponseTimeByTP.csv'))
 
+
+'''
 #accarr[np.isnan(accarr)]=0
 accdf=pd.DataFrame(accarr)
 accdf=accdf.replace(to_replace=np.nan,method='ffill',limit=3)
@@ -184,5 +172,5 @@ for i in range(0,4):
     TwoBackMaskdfFalse.to_csv(os.path.join(eprimePath,'TwoBackMaskBlock'+str(i+1)+'.csv'))
 
 
-
+'''
 

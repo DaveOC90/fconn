@@ -19,7 +19,7 @@ relMotDf.to_csv(os.path.join(motDir,'HCPRest1LRRelMotionParameters.csv'))
 
 
 # Create rest motion csvs by timepoint so they can be used as confounds in dFC analysis
-for i in range(1,31,2):
+for i in range(1,35,2):
     meanDf = relMotDf.rolling(i,center=True).mean()
 
     meanDf.to_csv(os.path.join(motDir,'HCPRest1LRRelMotMeanCenterWin'+str(i).zfill(2)+'.csv'))
@@ -33,7 +33,7 @@ relMotDf.to_csv(os.path.join(motDir,'HCPWMLRRelMotionParameters.csv'))
 
 
 # Create wm motion csvs by timepoint so they can be used as confounds in dFC analysis
-for i in range(1,31,2):
+for i in range(1,35,2):
     meanDf = relMotDf.rolling(i,center=True).mean()
 
     meanDf.to_csv(os.path.join(motDir,'HCPWMLRRelMotMeanCenterWin'+str(i).zfill(2)+'.csv'))
