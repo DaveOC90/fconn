@@ -12,6 +12,8 @@ import numpy as np
 import pandas as pd
 import random
 
+import copy
+
 import matplotlib
 if (os.name == 'posix' and "DISPLAY" in os.environ) or (os.name == 'nt'):
     from mpl_toolkits.mplot3d import Axes3D
@@ -38,7 +40,7 @@ from scipy.spatial import ConvexHull
 import scipy as sp
 
 
-sys.path.append('/home/dmo39/gitrepos/fconn/')
+sys.path.append('~/gitrepos/fconn/')
 import cluster
 import data_reduction
 import plotting
@@ -50,45 +52,13 @@ import cpm
 from multiprocessing.dummy import Pool as ThreadPool
 from multiprocessing import Pool
 
-
-### Example commands
-# ~/anaconda3/bin/python pipeline.py wm_ts.npy /data15/mri_group/dave_data/dcpm/RT_inputtoCPM_alldata.csv ~/ohbm2019/code/substouse.npy 500 400 /data15/mri_group/dave_data/dcpm/rawDfcPlusModel_subbytp/ 1,3,5,7,9,11,13,15,17,19,21,23,25,27 middle test
-# ~/anaconda3/bin/python pipeline.py ~/ohbm2019/code/wm_ts.npy /data15/mri_group/dave_data/dcpm/target_variables/PMATs_inputtoCPM_oneline.csv ~/ohbm2019/code/substouse.npy 400 400 /data15/mri_group/dave_data/dcpm/staticcon_fIQ_400_400/ 405 static test
-
-# python code/fconn/pipeline.py data/HCP/imagingData/HCP_WM_LR_GSR.npy target_variables/PMATs_inputtoCPM_oneline.csv substouse.npy 400 400 ~/scratch60/dCPM/ 405 static test
+import yaml
 
 
+def produceDynFiles():
+    pass
 
 
-
-def produce_sublist(opname):
-
-    # Load GSR corrected working memory time series
-    print("Loading working memory and resting to determine subs overlap")
-
-    ts_parcel_wm, wmsubs = utils.load_timeseries('HCPDataStruct_GSR_WM_LR.mat','wm_ts.npy','data_struct','WM_LR')
-    ts_parcel_rest, restsubs = utils.load_timeseries('HCPDataStruct_GSR_REST_LR.mat','rest_ts.npy','data_struct','REST_LR')
-
-
-    # Event subs
-    # Find possible working memory spreadsheets
-
-    taskeventsubs=np.load('../subswithsameWMstructure.npy')
-    taskeventsubs=[t.replace('sub','') for t in taskeventsubs]
-    
-    # Filter subs based on whats common to both modalities
-    subs_combo=list(sorted(set(restsubs).intersection(set(wmsubs)).intersection(set(taskeventsubs))))
-
-
-    pmat_all=pd.read_csv('/home/dmo39/pmat.csv')
-    pmat_filter=pmat_all[pmat_all.Subject.isin(subs_combo)]
-    pmat_filter_nan=pmat_filter[~pmat_filter.PMAT24_A_CR.isna()]
-    pmats=pmat_filter_nan.PMAT24_A_CR.values.astype(int)
-    subs_combo_pmat=list(pmat_filter_nan.Subject.values.astype(str))
-
-    np.save(opname,subs_combo_pmat)
-
-    return subs_combo_pmat
 
 if __name__ == '__main__':
 
@@ -117,6 +87,9 @@ if __name__ == '__main__':
 
     parser.add_argument('--corrtype',help='"pearsonr" or "partial"; if partial please specify confound',type=str,default = 'pearsonr')
     parser.add_argument('--confound',help='path to confound csv')
+    parser.add_argument('--cpmconfig',help='path to yaml file containting parameters for CPM run')
+
+
     
     args=parser.parse_args()
 
@@ -139,10 +112,35 @@ if __name__ == '__main__':
 
     maskfile=args.temporalmask
 
+    cpmConfigPath = args.cpmconfig
+
+
+    with open(cpmConfigPath,'r') as fload: 
+        cpmDict = yaml.safe_load(fload)
+
+    cpmDict['subs_to_run'] = subs_to_run
+    cpmDict['sublist'] = subject_list
+    cpmDict['corrtype'] = corrtype
+
+
+    # Config CPM Dict
+
+    #cpmDict = {}
+    #cpmDict['niters'] = 100
+    #cpmDict['readfile'] = True
+    #cpmDict['subs_to_run'] = subs_to_run
+    #cpmDict['sublist'] = subject_list
+    #cpmDict['corrtype'] = corrtype
+    #cpmDict['method'] = 'crossVal'
+    #cpmDict['pthresh'] = 0.01
+    #cpmDict['cvType'] = 'splithalf'
+
+
+
     ## paralell processing vals
 
-    cpmParallelRuns = 10
-    dFCCalcParallelRuns = 10
+    cpmParallelRuns = 15
+    dFCCalcParallelRuns = 15
     
 
     #ipfile='wm_ts.npy'
@@ -159,6 +157,10 @@ if __name__ == '__main__':
     #window_anchor='middle'
 
     ##$  Config End  $##
+
+
+
+
 
     ### Establishing paths and options ###
 
@@ -187,11 +189,7 @@ if __name__ == '__main__':
     print("Gathering subject IDs")
 
 
-    # Create subject list using produce sublist if it doesnt exist
-    # Should get rid of this and just go with inputted sublist
-    #if not os.path.isfile(subject_list):
-    #    subject_list=produce_sublist(subject_list)
-    #else:
+
     subject_list=list(map(str,np.load(subject_list, allow_pickle=True)))
 
 
@@ -205,6 +203,9 @@ if __name__ == '__main__':
     ts_parcel, subs = utils.load_timeseries('',ipfile,'','')
 
     
+
+    ntpsTimeseries = ts_parcel[subject_list[0]].shape[0]
+
     # Make sure all subs from sublist are in the timeseries object
     if not all([s in subs for s in subject_list]):
         missing=[s for s in subject_list if s not in subs]
@@ -225,9 +226,16 @@ if __name__ == '__main__':
     prediction_target=prediction_target[subject_list]
 
 
+
+
     if conn_type == 'dynamic':
+
         # Pick out timepoints with no nan values
-        tps_with_RT=prediction_target.dropna().index.values.astype(int)
+        tps_with_RT=prediction_target.dropna(axis=0,how = 'all').index.values.astype(int)
+
+        tps_with_enough_subs = prediction_target[np.sum(~np.isnan(prediction_target),axis=1) >= subs_to_run].index.values.astype(int)
+
+        tps_with_RT=tps_with_RT[np.in1d(tps_with_RT,tps_with_enough_subs)]
     
         ### Attempting to have varying subjectlist by timepoint based on those with prediction
         ### target set to zero or NaN
@@ -238,6 +246,8 @@ if __name__ == '__main__':
         pred_target_subsbytp=mask.apply(lambda x : sublistarr[x],axis=1).values
         #    Keep subs that are excluded by timepoint
         subbytp_exclude=mask.apply(lambda x : sublistarr[~x],axis=1).values
+
+
     
     # Turn prediction target into array
 
@@ -272,9 +282,10 @@ if __name__ == '__main__':
 
     # Shuffle timeseries if requested   
     if shuff:
+
         print("Shuffling timeseries selected")
         # Created randomly shuffled temporal indices
-        randinds=[np.random.permutation(405) for i in range(0,len(ts_parcel))]
+        randinds=[np.random.permutation(ntpsTimeseries) for i in range(0,len(ts_parcel))]
         # Apply
         ts_parcel={k:ts_parcel[k][randinds[i],:] for i,k in enumerate(ts_parcel)}
 
@@ -285,6 +296,7 @@ if __name__ == '__main__':
         randdict['filteredsubs']=subject_list
         savepath=os.path.join(resdir,'randinds_subs.npy')
         np.save(savepath,randdict)
+
 
 
 
@@ -316,8 +328,10 @@ if __name__ == '__main__':
             beginshift=beginshift_dct[window_anchor]
             endshift=endshift_dct[window_anchor]
 
+
+
             # Put in catch so code doesnt try to include tps not in imaging data
-            tps_to_run_image=set(range(0+beginshift,405-endshift))
+            tps_to_run_image=set(range(0+beginshift,ntpsTimeseries-endshift))
             tps_to_run=sorted(list(set.intersection(set(tps_with_RT),tps_to_run_image)))
 
             # Determine output names of phase connectivity data
@@ -325,7 +339,6 @@ if __name__ == '__main__':
 
             # Figure out if phase connectivity also exists
             ogm_mask=np.array([os.path.isfile(ogm) for ogm in opnames_gather_meanphase])
-
 
             
 
@@ -374,6 +387,11 @@ if __name__ == '__main__':
                 # These are the input files to CPM
                 cpmfiles=opnames_gather_meanphase
 
+                # Delete the ones we dont want
+                for aggdel in aggfiles_to_include.flatten():
+                     os.remove(aggdel)
+
+
             else:
                 cpmfiles=opnames_gather_meanphase
                 print("input matrices already exist")
@@ -399,9 +417,44 @@ if __name__ == '__main__':
             else:
                 if corrtype == 'partial':
 
-                    cpm_ipfiles=[(cpmfiles[i],prediction_target[fnum,:],fnum,True,subs_to_run,mask.values[fnum,:],subject_list,corrtype,confoundArr[fnum,:]) for i,fnum in enumerate(tps_to_run)]
+                    #cpm_ipfiles=[(cpmfiles[i],prediction_target[fnum,:],fnum,True,subs_to_run,mask.values[fnum,:],subject_list,corrtype,confoundArr[fnum,:]) for i,fnum in enumerate(tps_to_run)]
+
+                    cpm_ipfiles = []
+
+                    for i,fnum in enumerate(tps_to_run):
+                        subDct = copy.deepcopy(cpmDict)
+                        tpDct = { 'ipmats' : cpmfiles[i],
+                                  'pmats' : prediction_target[fnum,:],
+                                  'tp' : fnum,
+                                  'tpmask' : mask.values[fnum,:],
+                                  'confound' : confoundArr[fnum,:]}
+
+                        subDct.update(tpDct)
+
+                        cpm_ipfiles.append(subDct)
+
+                    
+
+
                 else:
-                    cpm_ipfiles=[(cpmfiles[i],prediction_target[fnum,:],fnum,True,subs_to_run,mask.values[fnum,:],subject_list,corrtype,None) for i,fnum in enumerate(tps_to_run)]
+                                        
+                    #cpm_ipfiles=[(cpmfiles[i],prediction_target[fnum,:],fnum,True,subs_to_run,mask.values[fnum,:],subject_list,corrtype,None) for i,fnum in enumerate(tps_to_run)]
+
+                    cpm_ipfiles = []
+
+                    for i,fnum in enumerate(tps_to_run):
+                        subDct = copy.deepcopy(cpmDict)
+                        tpDct = { 'ipmats' : cpmfiles[i],
+                                  'pmats' : prediction_target[fnum,:],
+                                  'tp' : fnum,
+                                  'tpmask' : mask.values[fnum,:],
+                                  'confound' : None}
+
+                        subDct.update(tpDct)
+
+                        cpm_ipfiles.append(subDct)
+
+
 
 
             # Run CPM at each timepoint
@@ -413,6 +466,7 @@ if __name__ == '__main__':
             #    os.remove(cf)
 
             # Write result
+
             opfile_name='dCPM_tps_'+str(avtps).zfill(3)+'_'+window_anchor+'_results_'+result_name+'.npy'
             oppath=os.path.join(resdir,opfile_name)
             print("Saving results: ",oppath)
@@ -482,9 +536,10 @@ if __name__ == '__main__':
 
 
 
+
         # Run CPM at each timepoint
         print("Running CPM")
-        with ThreadPool(1) as p:
+        with ThreadPool(10) as p:
             Rval_dict=p.map(cpm.run_cpm,cpm_ipfiles)
 
 
