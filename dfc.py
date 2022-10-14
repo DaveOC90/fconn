@@ -220,7 +220,8 @@ def meanphase_dump(args):
     finalopfname='indvphasecon_tp_'+str(tplist[-1]).zfill(3)+'_'+window_anchor+'_numtps_'+str(windowtps).zfill(3)+'_sub_'+subid+'.pkl'
     finalopfpath=os.path.join(opdir,finalopfname)
     if os.path.isfile(finalopfpath):
-        print('Final data already exists: ',opfpath)
+        print('Final data already exists: ',finalopfpath)
+
     else:
         for tp in tplist:
 
