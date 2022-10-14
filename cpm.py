@@ -361,6 +361,7 @@ def resampleCPM(ipmats, pheno, resampleSize, corrtype = 'pearsonr', confound = F
 
 
 
+
 def run_cpm(argDict = None):
 
     '''
@@ -369,53 +370,55 @@ def run_cpm(argDict = None):
     Accepts input dictionary with all parameters
     '''
 
-    niters=10
-    ipmats,pmats,tp,readfile,subs_to_run,tpmask,sublist,corrtype,confound=args
+    #niters=10
+    #ipmats,pmats,tp,readfile,subs_to_run,tpmask,sublist,corrtype,confound=args
 
 
-    if argDict is not None and type(argDict) == dict:
-        niters = argDict['niters']
-        ipmats = argDict['ipmats']
-        pmats = argDict['pmats']
-        tp = argDict['tp']
-        readfile = argDict['readfile']
-        subs_to_run = argDict['subs_to_run']
-        tpmask = argDict['tpmask']
-        sublist = argDict['sublist']
-        corrtype = argDict['corrtype']
-        confound = argDict['confound']
-        method = argDict['method']
-        pthresh = argDict['pthresh']
+    #if argDict is not None and type(argDict) == dict:
+    #    niters = argDict['niters']
+    #    ipmats = argDict['ipmats']
+    #    pmats = argDict['pmats']
+    #    tp = argDict['tp']
+    #    readfile = argDict['readfile']
+    #    subs_to_run = argDict['subs_to_run']
+    #    tpmask = argDict['tpmask']
+    #    sublist = argDict['sublist']
+    #    corrtype = argDict['corrtype']
+    #    confound = argDict['confound']
+    #    method = argDict['method']
+    #    pthresh = argDict['pthresh']
+
+     
 
 
     # Default args for function
-    argNamesDefaultVals = {'ipmat':None,
-                            'pheno':None,
-                            'corrtype':'pearsonr',
-                            'confound':False,
-                            'pthresh':0.01,
-                            'replacement' : False,
-                            'resampleSize' : None,
-                            'niters' : None,
-                            'tp' : 0,
-                            'method' : None,
-                            'sublist' : None,
-                            'tpmask' : False,
-                            'readfile' : False}
+    #argNamesDefaultVals = {'ipmat':None,
+    #                        'pheno':None,
+    #                        'corrtype':'pearsonr',
+    #                        'confound':False,
+    #                        'pthresh':0.01,
+    #                        'replacement' : False,
+    #                        'resampleSize' : None,
+    #                        'niters' : None,
+    #                        'tp' : 0,
+    #                        'method' : None,
+    #                        'sublist' : None,
+    #                        'tpmask' : False,
+    #                        'readfile' : False}
 
     # Check if vars have class definition
-    argNameDict={}
-    for argName,defaultVal in argNamesDefaultVals.items():
-        argNameDict[argName] = {}
+    #argNameDict={}
+    #for argName,defaultVal in argNamesDefaultVals.items():
+    #    argNameDict[argName] = {}
 
-        try:
-            exec('argNameDict["'+argName+'"]["val"] = '+argName)
-        except NameError:
-            exec('argNameDict["'+argName+'"]["val"] = Nonw')
-        argNameDict[argName]['default'] = defaultVal
+    #    try:
+    #        exec('argNameDict["'+argName+'"]["val"] = '+argName)
+    #    except NameError:
+    #        exec('argNameDict["'+argName+'"]["val"] = None')
+    #    argNameDict[argName]['default'] = defaultVal
 
-    varDict = self.checkVars(argNameDict)
-
+    #varDict = self.checkVars(argNameDict)
+    varDict = argDict
 
     niters = varDict['niters']
     ipmats = varDict['ipmats']
@@ -429,6 +432,11 @@ def run_cpm(argDict = None):
     confound = varDict['confound']
     method = varDict['method']
     pthresh = varDict['pthresh']
+
+    if method == 'crossVal' and 'cvType' not in argDict.keys():
+        raise Exception('If you want to run cross validation cvType must exist in input dictionary and be set to one of LOO, 5k, 10k, or splithalf (case sensitive)')
+    elif  method == 'crossVal' and 'cvType' in argDict.keys():
+        cvType = argDict['cvType']
 
 
 
@@ -455,6 +463,13 @@ def run_cpm(argDict = None):
         raise Exception('Input matrix should be 2 or 3 Dimensional (Nsubs x Nfeatures) or (Nsubs x Nrois x Nrois)')
         
 
+    ## Take lower triangle, should do this in a better way
+
+    triangMask = np.triu(np.ones([268,268]),k=1).reshape(-1).astype(bool)
+    ipmats = ipmats[triangMask,:]
+
+
+
     if type(tpmask) == np.ndarray and tpmask.dtype == bool:
 
         ipmats=ipmats[:,tpmask]
@@ -463,7 +478,8 @@ def run_cpm(argDict = None):
             condfound=confound[tpmask]
 
         if ipmats.shape[1] < subs_to_run:
-            raise Exception('Not enough subs')
+            Warning('Not enough subs, returning empty dict')
+            return {}
         if pmats.shape[0] < subs_to_run:
             raise Exception('Not enough dependent variables')
 
@@ -487,75 +503,77 @@ def run_cpm(argDict = None):
     #ipmats[ipmats == np.inf] = np.arctanh(0.999999)
 
     if method == 'crossVal':
-        if 'nfolds' in argDict.keys():
-            k = argDict['nfolds']
-        else:
-            raise Exception('if method is crossVal, must specify number of folds')
+        #if 'nfolds' in argDict.keys():
+        #    k = argDict['nfolds']
+        #else:
+        #    raise Exception('if method is crossVal, must specify number of folds')
 
         Rvals=np.zeros((niters,1))
         randinds=np.arange(0,numsubs)
 
 
-        pe_gather=np.zeros(nrois)
-        ne_gather=np.zeros(nrois)
-        bp_gather=[]
-        bn_gather=[]
-        ba_gather=[]
-        randinds_gather=[]
-        pf_gather=[]
-        nf_gather=[]
-        pe_gather_save=[]
-        featRvalGather=[]
+        #pe_gather=np.zeros(nrois)
+        #ne_gather=np.zeros(nrois)
+        #bp_gather=[]
+        #bn_gather=[]
+        #ba_gather=[]
+        #randinds_gather=[]
+        #pf_gather=[]
+        #nf_gather=[]
+        #pe_gather_save=[]
+        #featRvalGather=[]
 
 
-        for i in range(0,niters):
-            print('iter: ',i)
+        #for i in range(0,niters):
+        #    print('iter: ',i)
 
 
 
-            random.shuffle(randinds)
-            randinds_torun=randinds[:subs_to_run]
+        #    random.shuffle(randinds)
+        #    randinds_torun=randinds[:subs_to_run]
             #randinds_to_run=randinds  
 
-            ipmats_rand=ipmats[:,randinds_torun]
-            pmats_rand=pmats[randinds_torun]
+        #    ipmats_rand=ipmats[:,randinds_torun]
+        #    pmats_rand=pmats[randinds_torun]
 
+            # run_validate(ipmats, pheno, cvtype = 'splithalf', corrtype = 'pearsonr', confound = False, pthresh = 0.01, niters = 1)
+        pe_gather,ne_gather,bp_gather,bn_gather,ba_gather,pf_gather,nf_gather,featureRvalGather= run_validate(ipmats = ipmats,pheno = pmats,cvtype = cvType,corrtype = corrtype,confound = confound,pthresh = pthresh, niters = niters)
 
-            Rp,Rn,pe,ne,bp,bn,ba,pf,nf,featureRval=self.run_validate(ipmats = ipmats_rand,pheno = pmats_rand,cvtype = 'splithalf',corrtype = corrtype,confound = confound,pthresh = pthresh)
-            Rvals[i]=Rp
-            if i < 5:
-                pe_gather_save.append(pe)
-            pe_gather=pe_gather+pe
-            ne_gather=ne_gather+ne
-            bp_gather.append(bp)
-            bn_gather.append(bn)
-            ba_gather.append(ba)
-            randinds_gather.append(randinds_torun)
-            pf_gather.append(pf)
-            nf_gather.append(nf)
-            featRvalGather.append(featureRval)
+        #    if i < 5:
+        #        pe_gather_save.append(pe)
+        #    pe_gather=pe_gather+pe
+        #    ne_gather=ne_gather+ne
+        #    bp_gather.append(bp)
+        #    bn_gather.append(bn)
+        #    ba_gather.append(ba)
+        #    randinds_gather.append(randinds_torun)
+        #    pf_gather.append(pf)
+        #    nf_gather.append(nf)
+        #    featRvalGather.append(featureRval)
 
-        pe_gather=pe_gather
-        ne_gather=ne_gather
-        bp_gather=np.stack(bp_gather)
-        bn_gather=np.stack(bn_gather)
-        ba_gather=np.stack(ba_gather)
-        randinds_gather=np.stack(randinds_gather)
+        #pe_gather=pe_gather
+        #ne_gather=ne_gather
+        #bp_gather=np.stack(bp_gather)
+        #bn_gather=np.stack(bn_gather)
+        #ba_gather=np.stack(ba_gather)
+        #randinds_gather=np.stack(randinds_gather)
 
         opdict={}
         opdict['tp']=tp
-        opdict['rvals']=Rvals
+        #opdict['rvals']=Rvals
         opdict['posedges']=pe_gather
-        opdict['posedgesIndv']=pe_gather_save
+        #opdict['posedgesIndv']=pe_gather_save
         opdict['negedges']=ne_gather
         opdict['posbehav']=bp_gather
         opdict['negbehav']=bn_gather
         opdict['actbehav']=ba_gather
-        opdict['randinds']=randinds_gather
+        #opdict['randinds']=randinds_gather
         opdict['posfits']=pf_gather
         opdict['negfits']=nf_gather
         opdict['sublist']=sublist
-        opdict['featureRvals'] = featRvalGather
+        opdict['triangmask']=triangMask
+        
+        #opdict['featureRvals'] = featureRvalGather
         opdict[method] = method
 
 
@@ -573,7 +591,7 @@ def run_cpm(argDict = None):
 
         
         
-        behav_actual,posedge_gather,negedge_gather,pf_gather, nf_gather, rvals_gather,randindsGather = self.resampleCPM(ipmats = ipmat,pheno = pmat,corrtype = corrtype,confound = confound,replacement = replacement,resampleSize = resampleSize,iters = iters)
+        behav_actual,posedge_gather,negedge_gather,pf_gather, nf_gather, rvals_gather,randindsGather = resampleCPM(ipmats = ipmat,pheno = pmat,corrtype = corrtype,confound = confound,replacement = replacement,resampleSize = resampleSize,iters = iters)
 
 
         opdict={}
@@ -585,6 +603,7 @@ def run_cpm(argDict = None):
         opdict['posfits']=pf_gather
         opdict['negfits']=nf_gather
         opdict['sublist']=sublist
+        opdict['triangmask']=triangMask
         opdict['featureRvals'] = featRvalGather
         opdict[method] = method
 
@@ -604,7 +623,7 @@ def run_cpm(argDict = None):
     return opdict
 
 
-def apply_cpm(ipmats,pmats,edges,model,tpmask,readfile,subs_to_run,perf = 'corr'):
+def apply_cpm(ipmats,pmats,edges,model,tpmask,readfile,subs_to_run,perf = 'corr', randomize = False):
 
     '''
     Accepts input matrices, edges and model
@@ -644,7 +663,26 @@ def apply_cpm(ipmats,pmats,edges,model,tpmask,readfile,subs_to_run,perf = 'corr'
         else:
             raise Exception('Input matrix should be 2 or 3 Dimensional (Nsubs x Nfeatures) or (Nsubs x Nrois x Nrois)')
 
-            
+
+
+
+
+    if randomize:
+        randinds=np.arange(0,numsubs)
+        random.shuffle(randinds)
+        ipmats=ipmats[:,randinds]
+        pmats=pmats[randinds]
+        tpmask = tpmask[randinds]
+
+
+        #while (~np.isnan(pmats[:subs_to_run])).sum() < subs_to_run:
+
+        #    random.shuffle(randinds)
+        #    ipmats=ipmats[:,randinds]
+        #    pmats=pmats[randinds]
+        #    tpmask = tpmask[randinds]
+
+     
 
     if type(tpmask) == np.ndarray and tpmask.dtype == bool:
 
@@ -668,6 +706,7 @@ def apply_cpm(ipmats,pmats,edges,model,tpmask,readfile,subs_to_run,perf = 'corr'
         
 
 
+
     
     edgesum=np.sum(ipmats[edges.flatten().astype(bool),:], axis=0)/2   
     behav_pred=model[0]*edgesum + model[1]
@@ -678,6 +717,123 @@ def apply_cpm(ipmats,pmats,edges,model,tpmask,readfile,subs_to_run,perf = 'corr'
 
 
     return predscore
+
+
+
+
+def apply_cpm_para(argDict=None):
+
+    '''
+    Accepts input matrices, edges and model
+    Returns predicted behavior
+    '''    
+
+    #ipmats,pmats,edges,model,tpmask,readfile,subs_to_run,perf = 'corr', randomize = False
+    perf = 'corr'
+    ipmats = argDict['ipmats']
+    pmats = argDict['pmats']
+    edges = argDict['modelEdges']
+    model = argDict['modelFit']
+    tpmask = argDict['mask']
+    readfile = argDict['readfile']
+    subs_to_run = argDict['subsToRun']
+    randomize = argDict['randomize']
+
+    if 'tag' in argDict.keys():
+        print(argDict['tag'])
+
+    if readfile == True:
+        ipmats=pickle.load(open(ipmats,'rb'))
+        if len(ipmats.shape) == 3:
+            ipmats=np.transpose(ipmats,[1,2,0])
+            if ipmats.shape[0] != ipmats.shape[1]:
+                raise Exception('This is a 3D array but the dimensions typically designated ROIs are not equal')
+            nrois=ipmats.shape[0]**2
+            numsubs=ipmats.shape[2]
+            ipmats=ipmats.reshape(nrois,numsubs)
+            
+        elif len(ipmats.shape) == 2:
+            ipmats=np.transpose(ipmats,[1,0])
+            nrois=ipmats.shape[0]
+            numsubs=ipmats.shape[1]
+        else:
+            raise Exception('Input matrix should be 2 or 3 Dimensional (Nsubs x Nfeatures) or (Nsubs x Nrois x Nrois)')
+
+    else:
+        if len(ipmats.shape) == 3:
+            ipmats=np.transpose(ipmats,[1,2,0])
+            if ipmats.shape[0] != ipmats.shape[1]:
+                raise Exception('This is a 3D array but the dimensions typically designated ROIs are not equal')
+            nrois=ipmats.shape[0]**2
+            numsubs=ipmats.shape[2]
+            ipmats=ipmats.reshape(nrois,numsubs)
+            
+        elif len(ipmats.shape) == 2:
+            ipmats=np.transpose(ipmats,[1,0])
+            nrois=ipmats.shape[0]
+            numsubs=ipmats.shape[1]
+        else:
+            raise Exception('Input matrix should be 2 or 3 Dimensional (Nsubs x Nfeatures) or (Nsubs x Nrois x Nrois)')
+
+
+    ## Take lower triangle, should do this in a better way
+
+    triangMask = np.triu(np.ones([268,268]),k=1).reshape(-1).astype(bool)
+    ipmats = ipmats[triangMask,:]
+
+
+    if randomize:
+        randinds=np.arange(0,numsubs)
+        random.shuffle(randinds)
+        ipmats=ipmats[:,randinds]
+        pmats=pmats[randinds]
+        tpmask = tpmask[randinds]
+
+
+        #while (~np.isnan(pmats[:subs_to_run])).sum() < subs_to_run:
+
+        #    random.shuffle(randinds)
+        #    ipmats=ipmats[:,randinds]
+        #    pmats=pmats[randinds]
+        #    tpmask = tpmask[randinds]
+
+     
+
+    if type(tpmask) == np.ndarray and tpmask.dtype == bool:
+
+        ipmats=ipmats[:,tpmask]
+        pmats=pmats[tpmask]
+
+        if ipmats.shape[1] < subs_to_run:
+            raise Exception('Not enough subs')
+        if pmats.shape[0] < subs_to_run:
+            raise Exception('Not enough dependent variables')
+
+        ipmats=ipmats[:,:subs_to_run]
+        pmats=pmats[:subs_to_run]
+
+        numsubs=subs_to_run
+
+    elif type(tpmask) == bool and tpmask == False:
+        pass
+    else:
+        raise Exception('Datatype of mask not recognized, must be a boolean ndarray or boolean of value "False"')
+        
+
+
+
+    
+    edgesum=np.sum(ipmats[edges.flatten().astype(bool),:], axis=0)/2   
+    behav_pred=model[0]*edgesum + model[1]
+
+
+
+    predscore=calcPerf(behav_pred,pmats,method=perf)#np.corrcoef(behav_pred,pmats)[0,1]
+
+    if 'tag' in argDict.keys():
+        return {argDict['tag']:predscore}
+    else:
+        return predscore
 
 
 def calcPerf(pred,actu,method = 'corr'):
@@ -697,7 +853,7 @@ def calcPerf(pred,actu,method = 'corr'):
     return perf
 
 
-
+"""
 class CPM:
 
     def __init__(self,argDict = {}):
@@ -1257,11 +1413,11 @@ class CPM:
         return predscore
 
     def bootstrapApplyCPM(self,ipmats,pmats,edges,model,tpmask,readfile,subs_to_run,niters):
-        """
+        '''
         Accepts input matrices, edges and model
         Bootstraps smaller samples from input matrices
         Returns array of predicted behavior
-        """
+        '''
 
         ipmats=pickle.load(open(ipmats,'rb'))
 
@@ -1366,44 +1522,4 @@ def corr2_coeff(A,B):
 
     # Finally get corr coeff
     return np.dot(A_mA,B_mB.T)/np.sqrt(np.dot(ssA[:,None],ssB[None]))
-
-
-def shred_data_run_hcp():
-    mats=glob.glob('*WM*LR*_GSR*.txt')
-    mats=list(sorted(mats))
-    pheno=pd.read_csv('unrestricted_dustin_6_21_2018_20_47_17.csv')
-    subs=[m.split('_')[0] for m in mats]
-    pfilesubs=set(pheno.Subject)
-    subs=[int(s) for s in subs]
-    subset=set(subs)
-    usesubs=list(pfilesubs.intersection(subset))
-    usesubs=list(map(str,usesubs))
-    usesubs=sorted(usesubs)
-    iplist=[m for m in mats if any([u in m for u in usesubs])]
-    x=[pd.read_csv(m,sep='\t',header=None) for m in iplist]
-    x=[df.dropna(axis=1).values for df in x]
-    ipmats=np.stack(x,axis=2)
-    phenofilt=pheno[pheno.Subject.isin(usesubs)]
-    pmatvals=phenofilt['PMAT24_A_CR'].values
-
-    return ipmats,pmatvals,usesubs
-
-
-def shred_data_run_pnc():
-    iplist=sorted(glob.glob('*matrix.txt'))
-    pheno=pd.read_csv('phenotypes_info.csv')
-    df_filter=pheno[['SUBJID','pmat_cr']]
-    df_filter=df_filter.dropna()
-    subs_mats=[i.split('_')[0] for i in iplist]
-    subs_pheno=list(map(str,df_filter.SUBJID.unique()))
-    subs_pheno=[sp.split('.')[0] for sp in subs_pheno]
-    substouse=sorted(list(set(subs_mats) & set(subs_pheno)))
-
-    iplist=[ip for ip in iplist if any([s in ip for s in substouse])]
-
-    mats=[pd.read_csv(m,sep='\t',header=None).dropna(axis=1).values for m in iplist]
-    ipmats=np.stack(mats,axis=2)
-    pmatvals=df_filter.sort_values('SUBJID').pmat_cr.values
-    
-
-    return ipmats,pmatvals,substouse
+"""
