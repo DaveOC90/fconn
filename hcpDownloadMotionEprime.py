@@ -5,19 +5,6 @@ import pandas as pd
 import sys
 import pdb
 
-# credspath='hcp_aws_keys.txt'
-# bucket_name='hcp-openaccess'
-
-# creds=[s.strip().split('=')[1] for s in open(credspath,'r')]
-
-# aws_access_key_id,aws_secret_access_key=creds
-# session = boto3.session.Session(aws_access_key_id=aws_access_key_id,
-#                                 aws_secret_access_key=aws_secret_access_key)
-# s3_resource = session.resource('s3', use_ssl=True)
-
-# bucket = s3_resource.Bucket(bucket_name)
-
-# s3_resource.meta.client.head_bucket(Bucket=bucket_name)
 
 sublistPath = sys.argv[1]
 opDir = sys.argv[2]
@@ -34,9 +21,11 @@ for sub in subs:
     prefLists = []
 
     if motionEprimeOpt == 1:
-        prefLists.append(['/'.join(['HCP_900',sub,'unprocessed/3T/tfMRI_WM_LR/LINKED_DATA/EPRIME/']),'.txt'])
+        #prefLists.append(['/'.join(['HCP_900',sub,'unprocessed/3T/tfMRI_WM_LR/LINKED_DATA/EPRIME/']),'.txt'])
+        prefLists.append(['/'.join(['HCP_900',sub,'unprocessed/3T/tfMRI_EMOTION_LR/LINKED_DATA/EPRIME/']),'.txt'])
     elif motionEprimeOpt == 0:
         prefLists.append(['/'.join(['HCP_1200',sub,'MNINonLinear/Results/tfMRI_WM_LR/']),'Movement'])
+        prefLists.append(['/'.join(['HCP_1200',sub,'MNINonLinear/Results/tfMRI_EMOTION_LR/']),'Movement'])
         prefLists.append(['/'.join(['HCP_1200',sub,'MNINonLinear/Results/rfMRI_REST1_LR/']),'Movement'])
     else:
         raise Exception('Third command line input must be 0/1 0 is motion 1 is Eprime')
